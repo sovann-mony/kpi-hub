@@ -1,0 +1,1024 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Ma PNL</title>
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ma PNL">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1f232c; --line:#2a2f3a;
+    --txt:#e8ebf0; --muted:#8b93a3; --accent:#3390ec; --accent2:#2b7fd4;
+    --green:#26a269; --red:#e5484d; --amber:#e0a500;
+    --radius:14px;
+  }
+  body.tg{
+    --bg:var(--tg-theme-bg-color,#0f1115);
+    --card:var(--tg-theme-secondary-bg-color,#171a21);
+    --txt:var(--tg-theme-text-color,#e8ebf0);
+    --muted:var(--tg-theme-hint-color,#8b93a3);
+    --accent:var(--tg-theme-button-color,#3390ec);
+    --line:color-mix(in srgb, var(--tg-theme-text-color,#e8ebf0) 12%, transparent);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:env(safe-area-inset-top) 0 0 0;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:12px 14px 96px}
+  h1,h2,h3{margin:0;font-weight:650}
+  .row{display:flex;gap:10px}
+  .grow{flex:1}
+  .muted{color:var(--muted)}
+  .center{text-align:center}
+  .hide{display:none!important}
+
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px}
+  header .acc{font-size:13px;color:var(--muted)}
+  header h1{font-size:18px}
+  #acctSwitchWrap select{width:auto;background:transparent;border:none;font-size:18px;font-weight:650;
+    color:var(--txt);padding:0 18px 0 0;max-width:60vw;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238b93a3' stroke-width='2'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right center}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .card + .card{margin-top:12px}
+
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px}
+  .stat .k{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .stat .v{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .stat .v.sm{font-size:17px}
+  .pos{color:var(--green)} .neg{color:var(--red)} .neu{color:var(--txt)}
+
+  .chartbox{position:relative;height:180px;width:100%}
+  canvas{width:100%;height:100%;display:block}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr.clk:active{background:var(--card2)}
+  .tag{display:inline-block;background:var(--card2);border:1px solid var(--line);color:var(--muted);
+    border-radius:999px;padding:1px 8px;font-size:11px;margin:2px 3px 0 0}
+
+  label{display:block;font-size:12px;color:var(--muted);margin:12px 0 5px}
+  input,select,textarea{
+    width:100%;background:var(--card2);border:1px solid var(--line);color:var(--txt);
+    border-radius:10px;padding:11px 12px;font-size:15px;outline:none;font-family:inherit
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  textarea{resize:vertical;min-height:70px}
+  .seg{display:flex;gap:8px}
+  .seg button{flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:var(--card2);border:1px solid var(--line);color:var(--muted);
+    border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;user-select:none}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  button{font-family:inherit}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 14px;
+    font-size:15px;font-weight:600;cursor:pointer;width:100%}
+  .btn.sec{background:var(--card2);color:var(--txt);border:1px solid var(--line)}
+  .btn.danger{background:transparent;color:var(--red);border:1px solid var(--red)}
+  .btn.dir{background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+  .btn.dir.long.on{background:var(--green);border-color:var(--green);color:#fff}
+  .btn.dir.short.on{background:var(--red);border-color:var(--red);color:#fff}
+  .btn.sm{padding:8px 10px;font-size:13px;width:auto}
+
+  .acctcard{display:flex;justify-content:space-between;align-items:center;background:var(--card2);
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+  .acctcard.on{border-color:var(--accent)}
+
+  .shotPick{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--card2);
+    border:1px dashed var(--line);border-radius:10px;padding:20px;color:var(--muted);cursor:pointer;text-align:center}
+  .shotPick:active{border-color:var(--accent)}
+  .shot img{width:100%;border-radius:10px;border:1px solid var(--line);display:block;cursor:zoom-in}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;display:flex;
+    align-items:center;justify-content:center;padding:14px}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:8px}
+
+  nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);
+    display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom));z-index:40}
+  nav button{flex:1;background:none;border:none;color:var(--muted);font-size:11px;padding:6px 2px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav button.on{color:var(--accent)}
+  nav .ic{font-size:19px;line-height:1}
+
+  .sectitle{font-size:13px;color:var(--muted);margin:16px 2px 8px;text-transform:uppercase;letter-spacing:.5px}
+  .empty{text-align:center;color:var(--muted);padding:34px 10px}
+  .empty .big{font-size:38px;margin-bottom:8px}
+  .filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px}
+  .filters select,.filters input{width:auto;min-width:120px;flex:0 0 auto;padding:8px 10px;font-size:13px}
+  .barlist .bar{margin:10px 0}
+  .barlist .bl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+  .track{height:7px;background:var(--card2);border-radius:999px;overflow:hidden}
+  .track > i{display:block;height:100%;border-radius:999px}
+  .toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:#000;color:#fff;
+    padding:10px 16px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;z-index:60;pointer-events:none;max-width:90%}
+  .toast.show{opacity:.92}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="min-width:0">
+      <div id="acctSwitchWrap"><h1 id="accName">Ma PNL</h1></div>
+      <div class="acc" id="accSub">Loading…</div>
+    </div>
+    <button class="btn sm sec" id="addQuick">+ Trade</button>
+  </header>
+
+  <section id="view-dash"></section>
+  <section id="view-trades" class="hide"></section>
+  <section id="view-add" class="hide"></section>
+  <section id="view-settings" class="hide"></section>
+</div>
+
+<nav>
+  <button data-tab="dash" class="on"><span class="ic">📊</span>Dashboard</button>
+  <button data-tab="trades"><span class="ic">📋</span>Trades</button>
+  <button data-tab="add"><span class="ic">➕</span>Add</button>
+  <button data-tab="settings"><span class="ic">⚙️</span>Settings</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   FX Trading Journal — Telegram Mini App + installable PWA
+   Multi-account. Persists to Telegram CloudStorage inside
+   Telegram; falls back to localStorage in a browser/PWA.
+   ============================================================ */
+
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+const SETUPS = ["OB","FVG","Breaker","Liquidity Grab","Turtle Soup","MSS","BOS",
+  "OTE","SMT","Mitigation","Rejection Block","Equal H/L","Silver Bullet",
+  "Judas Swing","Power of 3","Daily Bias"];
+const SESSIONS = ["Asia","London Open","London KZ","NY Open","NY KZ","London Close","Lunch"];
+const PAIRS = ["XAUUSD","EURUSD","GBPUSD","USDJPY","GBPJPY","AUDUSD","USDCAD",
+  "NZDUSD","USDCHF","EURJPY","NAS100","US30","BTCUSD"];
+
+const state = {
+  trades: [],
+  accounts: [],      // [{id,name,currency,startBalance,riskPct}]
+  activeId: null,
+  editingId: null,
+  draft: null,
+  filters: { pair:"", outcome:"", setup:"", q:"" },
+  canInstall: false,
+  autopost: false
+};
+
+/* ---------- helpers ---------- */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function plural(n,w){ return n+" "+w+(n===1?"":"s"); }
+function newAccount(name){ return { id:uid(), name:name||"Ma PNL", currency:"$", startBalance:1000, riskPct:1 }; }
+function active(){ return state.accounts.find(a=>a.id===state.activeId) || state.accounts[0] || newAccount(); }
+function TR(){ const id=state.activeId; return state.trades.filter(t=>t.acct===id); }
+function sortTrades(){
+  state.trades.sort((a,b)=>{
+    if(a.date!==b.date) return a.date < b.date ? -1 : 1;
+    return (a.created||0) - (b.created||0);
+  });
+}
+function curOf(acc,n){
+  const c=(acc&&acc.currency)||"$";
+  const sign=n<0?"-":"";
+  const v=Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  return sign+c+v;
+}
+function cur(n){ return curOf(active(),n); }
+function num(v){ const n=parseFloat(v); return isFinite(n)?n:0; }
+function cls(n){ return n>0?"pos":n<0?"neg":"neu"; }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function toast(msg){
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),1800);
+}
+function haptic(type){ try{ tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(type||"light"); }catch(e){} }
+
+/* ---------- screenshots: stored on-device in IndexedDB (not synced) ---------- */
+const IMGDB = {
+  _db:null,
+  open(){
+    return new Promise((res,rej)=>{
+      if(this._db) return res(this._db);
+      try{
+        const r=indexedDB.open("fxj_images",1);
+        r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains("img")) r.result.createObjectStore("img"); };
+        r.onsuccess=()=>{ this._db=r.result; res(this._db); };
+        r.onerror=()=>rej(r.error);
+      }catch(e){ rej(e); }
+    });
+  },
+  async set(id,dataURL){ try{ const db=await this.open(); await new Promise((res,rej)=>{ const tx=db.transaction("img","readwrite"); tx.objectStore("img").put(dataURL,id); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }catch(e){} },
+  async get(id){ try{ const db=await this.open(); return await new Promise(res=>{ const tx=db.transaction("img","readonly"); const rq=tx.objectStore("img").get(id); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null); }); }catch(e){ return null; } },
+  async del(id){ try{ const db=await this.open(); await new Promise(res=>{ const tx=db.transaction("img","readwrite"); tx.objectStore("img").delete(id); tx.oncomplete=()=>res(); tx.onerror=()=>res(); }); }catch(e){} }
+};
+// downscale + compress to keep screenshots small
+function processImage(file){
+  return new Promise((res,rej)=>{
+    if(!file || file.type.indexOf("image")!==0){ rej(); return; }
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let w=img.naturalWidth, h=img.naturalHeight; const maxW=1600;
+      if(w>maxW){ h=Math.round(h*maxW/w); w=maxW; }
+      const c=document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      try{ res(c.toDataURL("image/jpeg",0.82)); }catch(e){ rej(e); }
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(); };
+    img.src=url;
+  });
+}
+function showImage(src){
+  const d=document.createElement("div"); d.className="lightbox";
+  const im=document.createElement("img"); im.src=src; d.appendChild(im);
+  d.onclick=()=>d.remove(); document.body.appendChild(d);
+}
+
+/* ============================================================
+   Storage  (CloudStorage inside Telegram, else localStorage)
+   trades -> t_<id> ;  accounts/activeId -> accts
+   ============================================================ */
+const useCloud = !!(tg && tg.CloudStorage && tg.initData);
+const LS_PREFIX = "fxj_";
+function lsSet(k,v){ try{ localStorage.setItem(LS_PREFIX+k,v); }catch(e){} }
+function lsGet(k){ try{ return localStorage.getItem(LS_PREFIX+k); }catch(e){ return null; } }
+
+const Store = {
+  _cloudGet(key){ return new Promise(r=> tg.CloudStorage.getItem(key,(e,v)=>r(e?null:v))); },
+  _cloudGetKeys(){ return new Promise(r=> tg.CloudStorage.getKeys((e,k)=>r(e?[]:(k||[])))); },
+  _cloudSet(key,val){ return new Promise((res,rej)=> tg.CloudStorage.setItem(key,val,(e,ok)=>e?rej(e):res(ok))); },
+  _cloudDel(key){ return new Promise(r=> tg.CloudStorage.removeItem(key,()=>r())); },
+
+  async loadAll(){
+    let accts=null, legacy=null;
+    if(useCloud){
+      const keys=await this._cloudGetKeys();
+      if(keys.includes("accts")){ const raw=await this._cloudGet("accts"); if(raw) try{accts=JSON.parse(raw);}catch(e){} }
+      if(keys.includes("cfg")){ const raw=await this._cloudGet("cfg"); if(raw) try{legacy=JSON.parse(raw);}catch(e){} }
+      const tKeys=keys.filter(k=>k.indexOf("t_")===0);
+      const trades=[];
+      for(const k of tKeys){ const raw=await this._cloudGet(k); if(raw) try{trades.push(JSON.parse(raw));}catch(e){} }
+      state.trades=trades;
+    } else {
+      try{ const a=lsGet("accts"); if(a) accts=JSON.parse(a); }catch(e){}
+      try{ const c=lsGet("cfg"); if(c) legacy=JSON.parse(c); }catch(e){}
+      try{ const t=lsGet("trades"); state.trades=t?JSON.parse(t):[]; }catch(e){ state.trades=[]; }
+    }
+
+    if(accts && Array.isArray(accts.accounts) && accts.accounts.length){
+      state.accounts=accts.accounts;
+      state.activeId=accts.activeId||accts.accounts[0].id;
+    } else {
+      // first run / migrate from old single-account cfg
+      const acc = legacy ? { id:uid(), name:legacy.account||"Ma PNL",
+        currency:legacy.currency||"$", startBalance:legacy.startBalance??1000, riskPct:legacy.riskPct??1 }
+        : newAccount();
+      state.accounts=[acc]; state.activeId=acc.id;
+      let changed=false;
+      for(const t of state.trades){ if(!t.acct){ t.acct=acc.id; changed=true; } }
+      await this.saveAccounts();
+      if(changed) for(const t of state.trades) await this.saveTrade(t);
+    }
+    for(const t of state.trades){ if(!t.acct) t.acct=state.activeId; }
+    state.autopost = !!(accts && accts.autopost);
+    sortTrades();
+  },
+
+  async saveTrade(t){
+    if(useCloud){ try{ await this._cloudSet("t_"+t.id, JSON.stringify(t)); }catch(e){ toast("Cloud save failed"); } }
+    else lsSet("trades", JSON.stringify(state.trades));
+  },
+  async deleteTrade(id){
+    if(useCloud){ await this._cloudDel("t_"+id); }
+    else lsSet("trades", JSON.stringify(state.trades));
+  },
+  async saveAccounts(){
+    const payload=JSON.stringify({accounts:state.accounts, activeId:state.activeId, autopost:state.autopost});
+    if(useCloud){ try{ await this._cloudSet("accts", payload); }catch(e){} }
+    else lsSet("accts", payload);
+  },
+  async replaceAllData(trades, accounts, activeId){
+    state.accounts=accounts; state.activeId=activeId;
+    if(useCloud){
+      const keys=await this._cloudGetKeys();
+      for(const k of keys.filter(k=>k.indexOf("t_")===0)) await this._cloudDel(k);
+      for(const t of trades) await this._cloudSet("t_"+t.id, JSON.stringify(t));
+      await this.saveAccounts();
+    } else {
+      lsSet("trades", JSON.stringify(trades));
+      await this.saveAccounts();
+    }
+    state.trades=trades; sortTrades();
+  }
+};
+
+/* ============================================================
+   Metrics  (operate on a given list = active account's trades)
+   ============================================================ */
+function computeMetrics(list){
+  const m={count:list.length,net:0,grossProfit:0,grossLoss:0,wins:0,losses:0,be:0,
+    winRate:0,profitFactor:0,avgWin:0,avgLoss:0,expectancy:0,avgR:null,best:0,worst:0,
+    maxDD:0,maxDDpct:0,streak:0,streakType:""};
+  if(!list.length) return m;
+  let rs=[],rc=0;
+  for(const t of list){
+    const p=num(t.pnl); m.net+=p;
+    if(p>0){m.wins++;m.grossProfit+=p;} else if(p<0){m.losses++;m.grossLoss+=Math.abs(p);} else m.be++;
+    if(p>m.best)m.best=p; if(p<m.worst)m.worst=p;
+    if(t.rr!=null&&isFinite(t.rr)){rs.push(num(t.rr));rc++;}
+  }
+  const decided=m.wins+m.losses;
+  m.winRate=decided?(m.wins/decided*100):0;
+  m.profitFactor=m.grossLoss>0?(m.grossProfit/m.grossLoss):(m.grossProfit>0?Infinity:0);
+  m.avgWin=m.wins?m.grossProfit/m.wins:0;
+  m.avgLoss=m.losses?m.grossLoss/m.losses:0;
+  m.expectancy=m.count?m.net/m.count:0;
+  m.avgR=rc?rs.reduce((a,b)=>a+b,0)/rc:null;
+
+  let eq=num(active().startBalance),peak=eq,dd=0,ddp=0;
+  for(const t of list){ eq+=num(t.pnl); if(eq>peak)peak=eq; const d=peak-eq; if(d>dd){dd=d;ddp=peak>0?d/peak*100:0;} }
+  m.maxDD=dd; m.maxDDpct=ddp;
+
+  for(let i=list.length-1;i>=0;i--){
+    const p=num(list[i].pnl); if(p===0) continue;
+    const typ=p>0?"W":"L";
+    if(!m.streakType){m.streakType=typ;m.streak=1;}
+    else if(m.streakType===typ)m.streak++; else break;
+  }
+  return m;
+}
+
+/* ============================================================
+   Dashboard
+   ============================================================ */
+function renderDash(){
+  const el=document.getElementById("view-dash");
+  const list=TR();
+  const m=computeMetrics(list);
+  const bal=num(active().startBalance)+m.net;
+  const pf=m.profitFactor===Infinity?"∞":m.profitFactor.toFixed(2);
+  const wrCls=m.count?(m.winRate>=50?"pos":"neg"):"neu";
+  const pfCls=m.count?(m.profitFactor>1?"pos":(m.profitFactor<1?"neg":"neu")):"neu";
+
+  if(!list.length){
+    el.innerHTML=`<div class="empty"><div class="big">📈</div>
+      <div>No trades in this account yet.</div>
+      <div class="muted" style="margin:8px 0 16px">Log your first trade to start tracking P&L.</div>
+      <button class="btn" style="max-width:220px;margin:0 auto" onclick="go('add')">Add your first trade</button></div>`;
+    return;
+  }
+  el.innerHTML=`
+  <div class="stats">
+    <div class="stat"><div class="k">Balance</div><div class="v ${cls(m.net)}">${cur(bal)}</div></div>
+    <div class="stat"><div class="k">Net P&L</div><div class="v ${cls(m.net)}">${m.net>=0?"+":""}${cur(m.net)}</div></div>
+    <div class="stat"><div class="k">Win rate</div><div class="v ${wrCls}">${m.winRate.toFixed(1)}%</div><div style="font-size:11px;margin-top:3px"><span class="pos">${m.wins}W</span> <span class="muted">·</span> <span class="neg">${m.losses}L</span>${m.be?(' <span class="muted">· '+m.be+' BE</span>'):""}</div></div>
+    <div class="stat"><div class="k">Profit factor</div><div class="v ${pfCls}">${pf}</div><div class="muted" style="font-size:11px;margin-top:3px">${plural(m.count,"trade")}</div></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="row" style="justify-content:space-between;align-items:baseline">
+      <h3 style="font-size:14px">Equity curve</h3>
+      <span class="muted" style="font-size:12px">${plural(m.count,"trade")}</span>
+    </div>
+    <div class="chartbox"><canvas id="eqChart"></canvas></div>
+  </div>
+  <div class="stats" style="margin-top:12px">
+    <div class="stat"><div class="k">Avg win</div><div class="v sm pos">${cur(m.avgWin)}</div></div>
+    <div class="stat"><div class="k">Avg loss</div><div class="v sm neg">${cur(m.avgLoss)}</div></div>
+    <div class="stat"><div class="k">Expectancy / trade</div><div class="v sm ${cls(m.expectancy)}">${cur(m.expectancy)}</div></div>
+    <div class="stat"><div class="k">Avg R</div><div class="v sm ${m.avgR==null?'neu':cls(m.avgR)}">${m.avgR==null?"—":(m.avgR>=0?"+":"")+m.avgR.toFixed(2)+"R"}</div></div>
+    <div class="stat"><div class="k">Max drawdown</div><div class="v sm neg">${cur(m.maxDD)} <span class="muted" style="font-size:12px">(${m.maxDDpct.toFixed(1)}%)</span></div></div>
+    <div class="stat"><div class="k">Current streak</div><div class="v sm ${m.streakType==='W'?'pos':m.streakType==='L'?'neg':'neu'}">${m.streak?(m.streak+" "+(m.streakType==='W'?'wins':'losses')):"—"}</div></div>
+  </div>
+  ${renderSetupPerf(list)}
+  ${renderMonthly(list)}`;
+  requestAnimationFrame(()=>drawEquity(list));
+}
+function renderSetupPerf(list){
+  const map={};
+  for(const t of list){
+    for(const s of (t.setups||[])){
+      map[s]=map[s]||{net:0,count:0,wins:0,dec:0};
+      map[s].net+=num(t.pnl); map[s].count++;
+      if(num(t.pnl)>0){map[s].wins++;map[s].dec++;} else if(num(t.pnl)<0)map[s].dec++;
+    }
+  }
+  const rows=Object.entries(map).sort((a,b)=>b[1].net-a[1].net);
+  if(!rows.length) return "";
+  const max=Math.max(...rows.map(r=>Math.abs(r[1].net)),1);
+  let h=`<div class="sectitle">ICT setup performance</div><div class="card barlist">`;
+  for(const [name,d] of rows){
+    const wr=d.dec?(d.wins/d.dec*100).toFixed(0)+"%":"—";
+    const w=Math.abs(d.net)/max*100;
+    h+=`<div class="bar"><div class="bl"><span>${esc(name)} <span class="muted">· ${d.count}t · ${wr}</span></span>
+      <span class="${cls(d.net)}">${d.net>=0?"+":""}${cur(d.net)}</span></div>
+      <div class="track"><i style="width:${w}%;background:${d.net>=0?'var(--green)':'var(--red)'}"></i></div></div>`;
+  }
+  return h+`</div>`;
+}
+function renderMonthly(list){
+  const map={};
+  for(const t of list){
+    const mo=(t.date||"").slice(0,7); if(!mo) continue;
+    map[mo]=map[mo]||{net:0,count:0,wins:0,dec:0};
+    map[mo].net+=num(t.pnl); map[mo].count++;
+    if(num(t.pnl)>0){map[mo].wins++;map[mo].dec++;} else if(num(t.pnl)<0)map[mo].dec++;
+  }
+  const rows=Object.entries(map).sort((a,b)=>a[0]<b[0]?1:-1);
+  if(!rows.length) return "";
+  let h=`<div class="sectitle">Monthly breakdown</div><div class="card" style="padding:4px 14px">
+    <table><thead><tr><th>Month</th><th class="num">Trades</th><th class="num">Win%</th><th class="num">Net P&L</th></tr></thead><tbody>`;
+  for(const [mo,d] of rows){
+    const wr=d.dec?(d.wins/d.dec*100).toFixed(0):"—";
+    const label=new Date(mo+"-01").toLocaleDateString(undefined,{month:"short",year:"numeric"});
+    h+=`<tr><td>${label}</td><td class="num">${d.count}</td><td class="num">${wr}</td>
+      <td class="num ${cls(d.net)}">${d.net>=0?"+":""}${cur(d.net)}</td></tr>`;
+  }
+  return h+`</tbody></table></div>`;
+}
+function drawEquity(list){
+  const c=document.getElementById("eqChart"); if(!c) return;
+  const dpr=window.devicePixelRatio||1, rect=c.getBoundingClientRect();
+  c.width=rect.width*dpr; c.height=rect.height*dpr;
+  const ctx=c.getContext("2d"); ctx.scale(dpr,dpr);
+  const W=rect.width,H=rect.height,pad=6;
+  const pts=[]; let eq=num(active().startBalance); pts.push(eq);
+  for(const t of list){ eq+=num(t.pnl); pts.push(eq); }
+  const min=Math.min(...pts),max=Math.max(...pts),range=(max-min)||1;
+  const x=i=> pad+i*(W-2*pad)/(pts.length-1||1);
+  const y=v=> H-pad-(v-min)/range*(H-2*pad);
+  const base=num(active().startBalance);
+  ctx.strokeStyle="rgba(139,147,163,.3)"; ctx.setLineDash([4,4]); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad,y(base)); ctx.lineTo(W-pad,y(base)); ctx.stroke(); ctx.setLineDash([]);
+  const up=pts[pts.length-1]>=base, col=up?getCSS("--green"):getCSS("--red");
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,hexA(col,.28)); grad.addColorStop(1,hexA(col,0));
+  ctx.beginPath(); ctx.moveTo(x(0),y(pts[0]));
+  for(let i=1;i<pts.length;i++) ctx.lineTo(x(i),y(pts[i]));
+  ctx.lineTo(x(pts.length-1),H-pad); ctx.lineTo(x(0),H-pad); ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x(0),y(pts[0]));
+  for(let i=1;i<pts.length;i++) ctx.lineTo(x(i),y(pts[i]));
+  ctx.strokeStyle=col; ctx.lineWidth=2; ctx.lineJoin="round"; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x(pts.length-1),y(pts[pts.length-1]),3,0,7); ctx.fillStyle=col; ctx.fill();
+}
+function getCSS(v){ return getComputedStyle(document.body).getPropertyValue(v).trim()||"#26a269"; }
+function hexA(hex,a){
+  hex=hex.replace("#",""); if(hex.length===3) hex=hex.split("").map(c=>c+c).join("");
+  const r=parseInt(hex.slice(0,2),16)||38,g=parseInt(hex.slice(2,4),16)||162,b=parseInt(hex.slice(4,6),16)||105;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ============================================================
+   Trades list
+   ============================================================ */
+function filtered(){
+  const f=state.filters;
+  return TR().filter(t=>{
+    if(f.pair && t.pair!==f.pair) return false;
+    if(f.outcome){ const p=num(t.pnl);
+      if(f.outcome==="win"&&!(p>0))return false;
+      if(f.outcome==="loss"&&!(p<0))return false;
+      if(f.outcome==="be"&&p!==0)return false; }
+    if(f.setup && !(t.setups||[]).includes(f.setup)) return false;
+    if(f.q){ const q=f.q.toLowerCase();
+      if(!((t.notes||"").toLowerCase().includes(q)||(t.pair||"").toLowerCase().includes(q))) return false; }
+    return true;
+  });
+}
+function renderTrades(){
+  const el=document.getElementById("view-trades");
+  const f=state.filters, all=TR();
+  const pairOpts=["<option value=''>All pairs</option>"].concat(
+    [...new Set(all.map(t=>t.pair))].filter(Boolean).map(p=>`<option ${f.pair===p?"selected":""}>${esc(p)}</option>`)).join("");
+  const setupOpts=["<option value=''>All setups</option>"].concat(
+    SETUPS.map(s=>`<option ${f.setup===s?"selected":""}>${esc(s)}</option>`)).join("");
+  const list=filtered().slice().reverse();
+  let body;
+  if(!all.length){ body=`<div class="empty"><div class="big">📋</div><div>No trades in this account.</div></div>`; }
+  else if(!list.length){ body=`<div class="empty"><div>No trades match these filters.</div></div>`; }
+  else {
+    body=`<div class="card" style="padding:4px 10px"><table><thead><tr>
+      <th>Date</th><th>Pair</th><th>Dir</th><th class="num">R</th><th class="num">P&L</th></tr></thead><tbody>`;
+    for(const t of list){
+      const p=num(t.pnl);
+      const r=t.rr!=null&&isFinite(t.rr)?((t.rr>=0?"+":"")+num(t.rr).toFixed(1)+"R"):"—";
+      const d=new Date(t.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+      const dir=t.direction==="long"?"▲":"▼", dcol=t.direction==="long"?"pos":"neg";
+      body+=`<tr class="clk" onclick="editTrade('${t.id}')">
+        <td>${d}</td><td>${esc(t.pair)}${t.hasImg?' <span style="opacity:.65">📷</span>':''}</td><td class="${dcol}">${dir}</td>
+        <td class="num ${r==='—'?'neu':cls(num(t.rr))}">${r}</td>
+        <td class="num ${cls(p)}">${p>=0?"+":""}${cur(p)}</td></tr>`;
+    }
+    body+=`</tbody></table></div>`;
+  }
+  el.innerHTML=`
+    <div class="filters">
+      <select onchange="setFilter('pair',this.value)">${pairOpts}</select>
+      <select onchange="setFilter('outcome',this.value)">
+        <option value="">All results</option>
+        <option value="win" ${f.outcome==='win'?'selected':''}>Wins</option>
+        <option value="loss" ${f.outcome==='loss'?'selected':''}>Losses</option>
+        <option value="be" ${f.outcome==='be'?'selected':''}>Break-even</option>
+      </select>
+      <select onchange="setFilter('setup',this.value)">${setupOpts}</select>
+    </div>${body}`;
+}
+function setFilter(k,v){ state.filters[k]=v; renderTrades(); }
+
+/* ============================================================
+   Add / Edit form
+   ============================================================ */
+function blankDraft(){
+  return { id:null, date:new Date().toISOString().slice(0,10), pair:"XAUUSD", direction:"long",
+    session:"", entry:"", exit:"", lots:"", risk:"", pnl:"", rr:"", setups:[], notes:"",
+    img:null, imgDirty:false };
+}
+function renderAdd(){
+  const el=document.getElementById("view-add");
+  const d=state.draft || (state.draft=blankDraft());
+  const ccy=esc(active().currency);
+  const sessOpts=["<option value=''>— Session —</option>"].concat(
+    SESSIONS.map(s=>`<option ${d.session===s?"selected":""}>${esc(s)}</option>`)).join("");
+  const chips=SETUPS.map(s=>`<span class="chip ${d.setups.includes(s)?"on":""}" onclick="toggleSetup('${s.replace(/'/g,"")}')">${esc(s)}</span>`).join("");
+  const shotHtml = d.img
+    ? `<div class="shot"><img src="${d.img}" onclick="zoomImg()"><button type="button" class="btn sm sec" style="margin-top:8px" onclick="removeScreenshot()">Remove screenshot</button></div>`
+    : `<label class="shotPick"><input type="file" accept="image/*" onchange="onScreenshotPick(this)" style="display:none"><span>📷 Tap to attach a chart screenshot</span></label>
+       <div class="muted" style="font-size:12px;margin-top:5px">From TradingView: screenshot/save the chart, then attach it here. On desktop you can also copy the chart and paste (Ctrl+V).</div>`;
+  el.innerHTML=`
+  <div class="card">
+    <h3 style="font-size:15px;margin-bottom:4px">${state.editingId?"Edit trade":"New trade"} <span class="muted" style="font-size:12px;font-weight:400">· ${esc(active().name)}</span></h3>
+    <label>Date</label>
+    <input type="date" id="f-date" value="${d.date}">
+    <label>Pair / Instrument</label>
+    <input list="pairlist" id="f-pair" value="${esc(d.pair)}" placeholder="e.g. XAUUSD">
+    <datalist id="pairlist">${PAIRS.map(p=>`<option value="${esc(p)}">`).join("")}</datalist>
+    <label>Direction</label>
+    <div class="seg">
+      <button type="button" class="btn dir long ${d.direction==='long'?'on':''}" onclick="setDir('long')">▲ Long</button>
+      <button type="button" class="btn dir short ${d.direction==='short'?'on':''}" onclick="setDir('short')">▼ Short</button>
+    </div>
+    <label>Session / Killzone</label>
+    <select id="f-session">${sessOpts}</select>
+    <div class="row">
+      <div class="grow"><label>Entry</label><input type="number" step="any" id="f-entry" value="${esc(d.entry)}" inputmode="decimal"></div>
+      <div class="grow"><label>Exit</label><input type="number" step="any" id="f-exit" value="${esc(d.exit)}" inputmode="decimal"></div>
+    </div>
+    <div class="row">
+      <div class="grow"><label>Lot size</label><input type="number" step="any" id="f-lots" value="${esc(d.lots)}" inputmode="decimal"></div>
+      <div class="grow"><label>Risk (${ccy})</label><input type="number" step="any" id="f-risk" value="${esc(d.risk)}" inputmode="decimal" placeholder="amount risked"></div>
+    </div>
+    <label>Profit / Loss (${ccy}) — negative for a loss</label>
+    <input type="number" step="any" id="f-pnl" value="${esc(d.pnl)}" inputmode="decimal" placeholder="e.g. 125 or -50" oninput="autoR()">
+    <div class="muted" id="rHint" style="font-size:12px;margin-top:5px">${rHintText(d)}</div>
+    <label>ICT setups</label>
+    <div class="chips">${chips}</div>
+    <label>Chart screenshot <span class="muted" style="font-weight:400">(optional · saved on this device)</span></label>
+    ${shotHtml}
+
+    <label>Notes</label>
+    <textarea id="f-notes" placeholder="Reasoning, mistakes, what to improve…">${esc(d.notes)}</textarea>
+    <div style="height:14px"></div>
+    <button class="btn" onclick="saveFromForm()">${state.editingId?"Update trade":"Save trade"}</button>
+    ${state.editingId?`<div style="height:10px"></div><button class="btn danger" onclick="removeTrade()">Delete trade</button>`:""}
+  </div>`;
+}
+function rHintText(d){
+  const r=num(d.risk),p=num(d.pnl);
+  if(r>0&&d.pnl!=="") return "R multiple ≈ "+(p/r).toFixed(2)+"R (auto from risk & P&L)";
+  return "Enter risk to auto-calculate your R multiple.";
+}
+function autoR(){
+  const r=num(document.getElementById("f-risk").value);
+  const p=num(document.getElementById("f-pnl").value);
+  const h=document.getElementById("rHint");
+  if(r>0&&document.getElementById("f-pnl").value!=="") h.textContent="R multiple ≈ "+(p/r).toFixed(2)+"R (auto from risk & P&L)";
+  else h.textContent="Enter risk to auto-calculate your R multiple.";
+}
+function setDir(v){ state.draft.direction=v; pullForm(); renderAdd(); }
+function toggleSetup(s){
+  const i=state.draft.setups.indexOf(s);
+  if(i>=0) state.draft.setups.splice(i,1); else state.draft.setups.push(s);
+  pullForm(); renderAdd(); haptic();
+}
+async function onScreenshotPick(input){
+  const f=input.files[0]; if(!f) return;
+  toast("Processing image…");
+  try{ const data=await processImage(f); state.draft.img=data; state.draft.imgDirty=true; pullForm(); renderAdd(); haptic(); }
+  catch(e){ toast("Couldn't read that image"); }
+}
+function removeScreenshot(){ state.draft.img=null; state.draft.imgDirty=true; pullForm(); renderAdd(); }
+function zoomImg(){ if(state.draft.img) showImage(state.draft.img); }
+function pullForm(){
+  const d=state.draft; if(!document.getElementById("f-date")) return;
+  d.date=document.getElementById("f-date").value;
+  d.pair=document.getElementById("f-pair").value.trim().toUpperCase();
+  d.session=document.getElementById("f-session").value;
+  d.entry=document.getElementById("f-entry").value;
+  d.exit=document.getElementById("f-exit").value;
+  d.lots=document.getElementById("f-lots").value;
+  d.risk=document.getElementById("f-risk").value;
+  d.pnl=document.getElementById("f-pnl").value;
+  d.notes=document.getElementById("f-notes").value;
+}
+async function saveFromForm(){
+  pullForm(); const d=state.draft;
+  if(!d.pair){ toast("Enter a pair"); return; }
+  if(d.pnl===""||isNaN(parseFloat(d.pnl))){ toast("Enter the P&L amount"); return; }
+  const risk=num(d.risk),pnl=num(d.pnl);
+  const rr=risk>0?+(pnl/risk).toFixed(2):null;
+  const prev = state.editingId ? state.trades.find(x=>x.id===state.editingId) : null;
+  const t={
+    id: state.editingId || uid(),
+    created: prev ? (prev.created||Date.now()) : Date.now(),
+    acct: prev ? (prev.acct||state.activeId) : state.activeId,
+    date:d.date, pair:d.pair, direction:d.direction, session:d.session,
+    entry:num(d.entry)||null, exit:num(d.exit)||null, lots:num(d.lots)||null,
+    risk:risk||null, pnl:pnl, rr:rr, setups:d.setups.slice(), notes:d.notes.trim(),
+    hasImg:false
+  };
+  // screenshot (stored on-device in IndexedDB, keyed by trade id)
+  if(d.imgDirty){
+    if(d.img){ t.hasImg=true; await IMGDB.set(t.id, d.img); }
+    else { t.hasImg=false; await IMGDB.del(t.id); }
+  } else { t.hasImg = prev ? !!prev.hasImg : false; }
+  if(prev){ const i=state.trades.findIndex(x=>x.id===state.editingId); if(i>=0) state.trades[i]=t; }
+  else state.trades.push(t);
+  sortTrades(); await Store.saveTrade(t);
+  haptic("medium"); toast(state.editingId?"Trade updated":"Trade saved");
+  if(!prev) postToGroup(t);   // auto-post new trades only (fire-and-forget)
+  state.editingId=null; state.draft=blankDraft(); setHeader(); go("dash");
+}
+function editTrade(id){
+  const t=state.trades.find(x=>x.id===id); if(!t) return;
+  state.editingId=id;
+  state.draft={ id:t.id, date:t.date, pair:t.pair, direction:t.direction, session:t.session||"",
+    entry:t.entry??"", exit:t.exit??"", lots:t.lots??"", risk:t.risk??"", pnl:t.pnl??"",
+    rr:t.rr??"", setups:(t.setups||[]).slice(), notes:t.notes||"", img:null, imgDirty:false };
+  go("add");
+  if(t.hasImg){ IMGDB.get(id).then(data=>{
+    if(state.editingId===id && data){ state.draft.img=data;
+      if(!document.getElementById("view-add").classList.contains("hide")) renderAdd(); }
+  }); }
+}
+async function removeTrade(){
+  if(!state.editingId) return;
+  const ok = tg ? await tgConfirm("Delete this trade? This cannot be undone.") : confirm("Delete this trade?");
+  if(!ok) return;
+  const id=state.editingId;
+  state.trades=state.trades.filter(x=>x.id!==id);
+  await Store.deleteTrade(id); await IMGDB.del(id);
+  state.editingId=null; state.draft=blankDraft(); setHeader();
+  toast("Trade deleted"); go("trades");
+}
+function tgConfirm(msg){ return new Promise(res=>{ try{ tg.showConfirm(msg,ok=>res(ok)); }catch(e){ res(confirm(msg)); } }); }
+
+/* ---------- auto-post a new trade to the Telegram group ---------- */
+function buildPostText(t){
+  const p=num(t.pnl);
+  const res=p>0?"✅ WIN":p<0?"❌ LOSS":"➖ BE";
+  const dir=t.direction==="long"?"🟢 LONG":"🔴 SHORT";
+  const r=t.rr!=null&&isFinite(t.rr)?`${t.rr>=0?"+":""}${num(t.rr).toFixed(1)}R`:"";
+  const setups=(t.setups||[]).join(", ");
+  return [
+    `📈 <b>New trade — ${esc(active().name)}</b>`,
+    `${esc(t.pair)} · ${dir} · ${res}`,
+    `P&L: <b>${p>=0?"+":""}${esc(cur(p))}</b>${r?` · ${r}`:""}`,
+    t.session?`Session: ${esc(t.session)}`:"",
+    setups?`Setups: ${esc(setups)}`:"",
+    t.notes?`📝 ${esc(t.notes)}`:"",
+    `🗓 ${t.date}`
+  ].filter(Boolean).join("\n");
+}
+async function postToGroup(t){
+  if(!state.autopost) return;
+  try{
+    const image = t.hasImg ? await IMGDB.get(t.id) : null;
+    const r=await fetch("/.netlify/functions/notify",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ text:buildPostText(t), image })});
+    const j=await r.json().catch(()=>({}));
+    if(!(j&&j.ok)) toast("Group post failed: "+((j&&j.description)||("HTTP "+r.status)));
+  }catch(e){ toast("Group post failed (is it set up?)"); }
+}
+async function testPost(){
+  toast("Sending test…");
+  try{
+    const r=await fetch("/.netlify/functions/notify",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ text:"✅ <b>Ma PNL</b> — auto-post test. If you see this in the group, it works!" })});
+    const j=await r.json().catch(()=>({}));
+    if(j&&j.ok) toast("Test sent to group ✅");
+    else toast("Failed: "+((j&&j.description)||("HTTP "+r.status)));
+  }catch(e){ toast("Couldn't reach the server — redeploy with the function first."); }
+}
+async function toggleAutopost(v){ state.autopost=!!v; await Store.saveAccounts(); haptic(); }
+
+/* ============================================================
+   Settings — accounts manager + backup + PWA install
+   ============================================================ */
+function renderSettings(){
+  const el=document.getElementById("view-settings");
+  const a=active();
+  const accCards=state.accounts.map(x=>{
+    const tr=state.trades.filter(t=>t.acct===x.id);
+    const net=tr.reduce((s,t)=>s+num(t.pnl),0);
+    const bal=num(x.startBalance)+net, on=x.id===state.activeId;
+    return `<div class="acctcard ${on?'on':''}" onclick="switchAcct('${x.id}')">
+      <div style="min-width:0"><div style="font-weight:600">${esc(x.name)} ${on?'<span class="tag" style="color:var(--accent);border-color:var(--accent)">active</span>':''}</div>
+      <div class="muted" style="font-size:12px">${plural(tr.length,'trade')}</div></div>
+      <div class="${cls(net)}" style="font-weight:600;white-space:nowrap">${curOf(x,bal)}</div></div>`;
+  }).join("");
+  el.innerHTML=`
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3 style="font-size:15px">Accounts</h3>
+      <button class="btn sm sec" onclick="addAccount()">+ Add</button>
+    </div>
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">${accCards}</div>
+    <div class="muted" style="font-size:12px;margin-top:8px">Tap an account to switch. Each has its own balance, currency &amp; trades.</div>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:15px;margin-bottom:4px">Edit “${esc(a.name)}”</h3>
+    <label>Account name</label><input id="s-name" value="${esc(a.name)}">
+    <div class="row">
+      <div class="grow"><label>Starting balance</label><input type="number" step="any" id="s-start" value="${esc(a.startBalance)}" inputmode="decimal"></div>
+      <div style="width:90px"><label>Currency</label><input id="s-cur" value="${esc(a.currency)}" maxlength="3"></div>
+    </div>
+    <label>Default risk per trade (%)</label><input type="number" step="any" id="s-risk" value="${esc(a.riskPct)}" inputmode="decimal">
+    <div style="height:14px"></div>
+    <button class="btn" onclick="saveSettings()">Save account</button>
+    ${state.accounts.length>1?`<div style="height:10px"></div><button class="btn danger" onclick="deleteAccount()">Delete this account &amp; its trades</button>`:""}
+  </div>
+
+  ${state.canInstall?`<div class="card"><h3 style="font-size:15px;margin-bottom:8px">Install app</h3>
+    <button class="btn" onclick="installApp()">⬇ Install Ma PNL on this device</button></div>`:""}
+
+  <div class="card">
+    <h3 style="font-size:15px;margin-bottom:8px">Telegram group auto-post</h3>
+    <label style="display:flex;align-items:center;justify-content:space-between;margin:0 0 4px">
+      <span>Post each new trade to my group</span>
+      <input type="checkbox" id="autopostToggle" ${state.autopost?"checked":""} onchange="toggleAutopost(this.checked)" style="width:auto;transform:scale(1.3)">
+    </label>
+    <div class="muted" style="font-size:12px;margin:6px 0 10px">Sends a summary + chart screenshot to your group when you add a new trade. Needs the one-time setup (bot in group + Netlify env vars) — see SETUP.md.</div>
+    <button class="btn sec" onclick="testPost()">Send a test message to the group</button>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:15px;margin-bottom:8px">Backup &amp; import</h3>
+    <button class="btn sec" onclick="exportJSON()">⬇ Export backup (JSON — all accounts)</button>
+    <div style="height:10px"></div>
+    <button class="btn sec" onclick="exportCSV()">⬇ Export trades (CSV — all accounts)</button>
+    <div style="height:10px"></div>
+    <label style="margin-top:0">Import backup (JSON)</label>
+    <input type="file" accept=".json,application/json" id="imp-json" onchange="importJSON(this)">
+    <label>Import trades (CSV → active account)</label>
+    <input type="file" accept=".csv,text/csv" id="imp-csv" onchange="importCSV(this)">
+    <div class="muted" style="font-size:12px;margin-top:8px">CSV columns auto-detected: <b>date, pair/symbol, type/direction, profit/pnl, lots/volume, notes</b>.</div>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:15px;margin-bottom:8px">Danger zone</h3>
+    <button class="btn danger" onclick="wipeAll()">Delete all trades in “${esc(a.name)}”</button>
+  </div>
+
+  <div class="muted center" style="font-size:12px;margin-top:16px">
+    Storage: ${useCloud?"Telegram CloudStorage (synced to your account)":"On this device (local)"}
+    · ${plural(state.trades.length,"trade")} · ${plural(state.accounts.length,"account")}
+  </div>`;
+}
+async function switchAcct(id){ state.activeId=id; await Store.saveAccounts(); setHeader(); renderSettings(); haptic(); }
+async function addAccount(){
+  const acc=newAccount("Account "+(state.accounts.length+1));
+  state.accounts.push(acc); state.activeId=acc.id;
+  await Store.saveAccounts(); setHeader(); renderSettings(); haptic();
+  toast("Account added — rename it below");
+}
+async function deleteAccount(){
+  if(state.accounts.length<=1) return;
+  const a=active();
+  const ok = tg ? await tgConfirm(`Delete “${a.name}” and all its trades?`) : confirm(`Delete “${a.name}” and all its trades?`);
+  if(!ok) return;
+  const ids=state.trades.filter(t=>t.acct===a.id).map(t=>t.id);
+  state.trades=state.trades.filter(t=>t.acct!==a.id);
+  state.accounts=state.accounts.filter(x=>x.id!==a.id);
+  state.activeId=state.accounts[0].id;
+  for(const id of ids){ await Store.deleteTrade(id); await IMGDB.del(id); }
+  await Store.saveAccounts(); setHeader(); toast("Account deleted"); renderSettings();
+}
+async function saveSettings(){
+  const a=active();
+  a.name=document.getElementById("s-name").value.trim()||"My Account";
+  a.startBalance=num(document.getElementById("s-start").value);
+  a.currency=(document.getElementById("s-cur").value.trim()||"$").slice(0,3);
+  a.riskPct=num(document.getElementById("s-risk").value);
+  await Store.saveAccounts(); setHeader(); toast("Account saved"); renderSettings();
+}
+async function wipeAll(){
+  const a=active();
+  const ok = tg ? await tgConfirm(`Delete ALL trades in “${a.name}”?`) : confirm(`Delete ALL trades in “${a.name}”?`);
+  if(!ok) return;
+  const ids=TR().map(t=>t.id);
+  state.trades=state.trades.filter(t=>t.acct!==state.activeId);
+  for(const id of ids){ await Store.deleteTrade(id); await IMGDB.del(id); }
+  setHeader(); toast("Trades deleted"); go("dash");
+}
+
+/* ---------- export / import ---------- */
+function exportJSON(){
+  const data={ app:"fx-journal", version:2, exportedAt:new Date().toISOString(),
+    accounts:state.accounts, activeId:state.activeId, trades:state.trades };
+  download("fx-journal-backup-"+new Date().toISOString().slice(0,10)+".json", JSON.stringify(data,null,2),"application/json");
+}
+function exportCSV(){
+  const nameOf={}; state.accounts.forEach(a=>nameOf[a.id]=a.name);
+  const head=["account","date","pair","direction","session","entry","exit","lots","risk","pnl","rr","setups","notes"];
+  const lines=[head.join(",")];
+  for(const t of state.trades){
+    const row=[nameOf[t.acct]||"",t.date,t.pair,t.direction,t.session||"",t.entry||"",t.exit||"",t.lots||"",
+      t.risk||"",t.pnl,t.rr??"",(t.setups||[]).join("|"),t.notes||""]
+      .map(v=>{ v=String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; });
+    lines.push(row.join(","));
+  }
+  download("fx-journal-trades-"+new Date().toISOString().slice(0,10)+".csv", lines.join("\n"),"text/csv");
+}
+function download(name,content,type){
+  try{
+    const blob=new Blob([content],{type}), url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000); toast("Exported "+name);
+  }catch(e){ toast("Export failed"); }
+}
+function importJSON(input){
+  const file=input.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    try{
+      const data=JSON.parse(r.result);
+      if(!Array.isArray(data.trades)) throw 0;
+      let accounts,activeId,trades;
+      if(Array.isArray(data.accounts)&&data.accounts.length){
+        accounts=data.accounts; activeId=data.activeId||accounts[0].id;
+        trades=data.trades.map(t=>Object.assign({created:Date.now()},t));
+        for(const t of trades){ if(!t.acct) t.acct=accounts[0].id; if(!t.id) t.id=uid(); }
+      } else {
+        const acc = data.cfg ? { id:uid(), name:data.cfg.account||"Imported", currency:data.cfg.currency||"$",
+          startBalance:data.cfg.startBalance??1000, riskPct:data.cfg.riskPct??1 } : newAccount("Imported");
+        accounts=[acc]; activeId=acc.id;
+        trades=data.trades.map(t=>Object.assign({id:uid(),created:Date.now(),acct:acc.id},t));
+      }
+      await Store.replaceAllData(trades, accounts, activeId);
+      setHeader(); toast("Imported "+plural(trades.length,"trade")); go("dash");
+    }catch(e){ toast("Invalid backup file"); }
+  };
+  r.readAsText(file); input.value="";
+}
+function importCSV(input){
+  const file=input.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    try{
+      const rows=parseCSV(r.result); if(rows.length<2) throw 0;
+      const head=rows[0].map(h=>h.trim().toLowerCase());
+      const find=(...names)=>{ for(const n of names){ const i=head.indexOf(n); if(i>=0) return i; } return -1; };
+      const iDate=find("date","time","open time","date/time"), iPair=find("pair","symbol","instrument","ticker");
+      const iDir=find("direction","type","side","action"), iPnl=find("pnl","profit","p&l","net","result","profit/loss");
+      const iLots=find("lots","volume","size","qty"), iRisk=find("risk"), iNotes=find("notes","comment","comments");
+      const added=[];
+      for(let k=1;k<rows.length;k++){
+        const c=rows[k]; if(!c.length||c.every(x=>!x.trim())) continue;
+        const pnlRaw=iPnl>=0?c[iPnl]:""; if(pnlRaw==="") continue;
+        const pnl=num(String(pnlRaw).replace(/[^0-9.\-]/g,""));
+        let dir=(iDir>=0?c[iDir]:"").toLowerCase(); dir=dir.includes("sell")||dir.includes("short")?"short":"long";
+        const risk=iRisk>=0?num(c[iRisk]):null;
+        added.push({ id:uid(), created:Date.now()+k, acct:state.activeId,
+          date:normDate(iDate>=0?c[iDate]:"")||new Date().toISOString().slice(0,10),
+          pair:(iPair>=0?c[iPair]:"").toUpperCase()||"UNKNOWN", direction:dir, session:"",
+          entry:null, exit:null, lots:iLots>=0?num(c[iLots])||null:null,
+          risk:risk||null, pnl:pnl, rr:risk>0?+(pnl/risk).toFixed(2):null, setups:[], notes:iNotes>=0?c[iNotes]:"" });
+      }
+      if(!added.length){ toast("No rows with P&L found"); return; }
+      for(const t of added){ state.trades.push(t); await Store.saveTrade(t); }
+      sortTrades(); setHeader(); toast("Imported "+plural(added.length,"trade")+" into "+active().name); go("dash");
+    }catch(e){ toast("Could not parse CSV"); }
+  };
+  r.readAsText(file); input.value="";
+}
+function normDate(s){
+  s=(s||"").trim(); if(!s) return "";
+  let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/); if(m) return m[1]+"-"+p2(m[2])+"-"+p2(m[3]);
+  m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if(m){ let a=+m[1],b=+m[2],y=m[3].length===2?"20"+m[3]:m[3],dd,mm;
+    if(a>12){dd=a;mm=b;}else if(b>12){dd=b;mm=a;}else{dd=a;mm=b;} return y+"-"+p2(mm)+"-"+p2(dd); }
+  const d=new Date(s); return isNaN(d)?"":d.toISOString().slice(0,10);
+}
+function p2(n){ return String(n).padStart(2,"0"); }
+function parseCSV(text){
+  const rows=[]; let row=[],cell="",q=false;
+  text=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=ch; }
+    else { if(ch==='"') q=true;
+      else if(ch===","){ row.push(cell); cell=""; }
+      else if(ch==="\n"){ row.push(cell); rows.push(row); row=[]; cell=""; }
+      else cell+=ch; }
+  }
+  if(cell.length||row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+
+/* ============================================================
+   PWA install
+   ============================================================ */
+let deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); deferredPrompt=e; state.canInstall=true;
+  if(!document.getElementById("view-settings").classList.contains("hide")) renderSettings(); });
+window.addEventListener("appinstalled",()=>{ state.canInstall=false; deferredPrompt=null; toast("App installed"); });
+async function installApp(){
+  if(!deferredPrompt){ toast("Use your browser menu → Install / Add to Home Screen"); return; }
+  deferredPrompt.prompt();
+  try{ await deferredPrompt.userChoice; }catch(e){}
+  deferredPrompt=null; state.canInstall=false; renderSettings();
+}
+
+/* ============================================================
+   Navigation + bootstrap
+   ============================================================ */
+const VIEWS=["dash","trades","add","settings"];
+function go(tab){
+  VIEWS.forEach(v=> document.getElementById("view-"+v).classList.toggle("hide",v!==tab));
+  document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on",b.dataset.tab===tab));
+  if(tab==="dash") renderDash();
+  else if(tab==="trades") renderTrades();
+  else if(tab==="add"){ if(!state.editingId && !state.draft) state.draft=blankDraft(); renderAdd(); }
+  else if(tab==="settings") renderSettings();
+  if(tg && tg.BackButton){ if(tab==="add" && state.editingId) tg.BackButton.show(); else tg.BackButton.hide(); }
+  window.scrollTo(0,0);
+}
+function setHeader(){
+  const a=active(), wrap=document.getElementById("acctSwitchWrap");
+  if(state.accounts.length>1){
+    wrap.innerHTML=`<select id="acctSwitch">`+
+      state.accounts.map(x=>`<option value="${x.id}" ${x.id===state.activeId?"selected":""}>${esc(x.name)}</option>`).join("")+`</select>`;
+    const sel=document.getElementById("acctSwitch");
+    sel.onchange=async()=>{ state.activeId=sel.value; await Store.saveAccounts(); setHeader(); go("dash"); haptic(); };
+  } else wrap.innerHTML=`<h1 id="accName">${esc(a.name)}</h1>`;
+  const m=computeMetrics(TR());
+  document.getElementById("accSub").textContent=cur(num(a.startBalance)+m.net)+" · "+plural(TR().length,"trade");
+}
+
+document.querySelectorAll("nav button").forEach(b=> b.onclick=()=>{
+  if(b.dataset.tab==="add"){ state.editingId=null; state.draft=blankDraft(); }
+  go(b.dataset.tab); haptic();
+});
+document.getElementById("addQuick").onclick=()=>{ state.editingId=null; state.draft=blankDraft(); go("add"); haptic(); };
+
+// Paste a screenshot (e.g. TradingView "copy chart") while on the Add/Edit form
+document.addEventListener("paste",async e=>{
+  if(document.getElementById("view-add").classList.contains("hide")) return;
+  const items=(e.clipboardData&&e.clipboardData.items)||[];
+  for(const it of items){
+    if(it.type&&it.type.indexOf("image")===0){
+      const f=it.getAsFile();
+      if(f){ try{ const data=await processImage(f); state.draft.img=data; state.draft.imgDirty=true; pullForm(); renderAdd(); toast("Screenshot pasted"); }catch(err){ toast("Couldn't read pasted image"); } }
+      break;
+    }
+  }
+});
+
+async function boot(){
+  if(tg){
+    document.body.classList.add("tg");
+    try{ tg.ready(); tg.expand(); }catch(e){}
+    try{ if(tg.setHeaderColor) tg.setHeaderColor("secondary_bg_color"); }catch(e){}
+    try{ if(tg.BackButton) tg.BackButton.onClick(()=>go("trades")); }catch(e){}
+  }
+  await Store.loadAll();
+  setHeader(); go("dash");
+}
+
+if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+boot();
+</script>
+</body>
+</html>
