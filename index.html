@@ -19,6 +19,10 @@
     --accent:var(--tg-theme-button-color,#2563eb);
     --accent-text:var(--tg-theme-button-text-color,#ffffff);
   }
+  /* explicit day / night (overrides Telegram theme when chosen) */
+  body.theme-light{ --bg:#f3f4f6;--card:#ffffff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;--accent:#2563eb;--accent-text:#ffffff;--chip:#eef2ff; }
+  body.theme-dark{ --bg:#0b1220;--card:#131c2e;--text:#e5e9f0;--muted:#8b98ad;--border:#263247;--accent:#3b82f6;--accent-text:#ffffff;--chip:#1b2a44; }
+  .theme-toggle{ background:var(--chip);color:var(--accent);border-radius:999px;width:36px;height:36px;min-width:36px;padding:0;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -81,17 +85,32 @@
   .logo{width:1.4em;height:1.4em;margin-right:.4em;vertical-align:-0.32em;
     filter:drop-shadow(0 2px 6px rgba(59,130,246,.38))}
 
-  /* ===== Desktop / PC layout ===== */
-  @media (min-width:760px){
-    :root{ --maxw:940px; }
-    .wrap{ padding:16px 20px 24px; }
+  /* ===== Wider layout: LEFT SIDEBAR nav (tablet / PC) ===== */
+  @media (min-width:580px){
+    :root{ --maxw:960px; }
     header h1{ font-size:22px; }
-    nav{ position:static; border-radius:12px; margin:0 0 12px; }
-    nav button{ flex:0 1 auto; min-width:130px; padding:12px 18px; font-size:14px; border-right:1px solid var(--border); }
-    nav button .ic{ display:inline; font-size:16px; margin-right:6px; }
-    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+    body:not(.auth) .wrap{
+      display:grid; column-gap:20px; padding:16px 20px 28px;
+      grid-template-columns:210px minmax(0,1fr);
+      grid-template-areas:"head head" "nav main";
+    }
+    body:not(.auth) header{ grid-area:head; }
+    body:not(.auth) #app{ grid-area:main; min-width:0; }
+    body:not(.auth) nav{
+      grid-area:nav; flex-direction:column; align-items:stretch;
+      position:sticky; top:14px; align-self:start;
+      border-radius:12px; overflow:hidden; margin:0;
+    }
+    body:not(.auth) nav button{ justify-content:flex-start; border-right:none;
+      border-bottom:1px solid var(--border); min-width:0; padding:12px 16px; font-size:14px; }
+    body:not(.auth) nav button:last-child{ border-bottom:none; }
+    body:not(.auth) nav button .ic{ display:inline; font-size:16px; margin-right:9px; }
+    .login-box{ margin-top:9vh; }
+  }
+  /* ===== Full desktop: 2-column forms ===== */
+  @media (min-width:820px){
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; align-items:start; }
     .span2{ grid-column:1 / -1; }
-    .login-box{ margin-top:10vh; }
   }
 </style>
 </head>
@@ -99,7 +118,10 @@
 <div class="wrap">
   <header>
     <h1 class="brandrow" id="brandH"><span>KPI&nbsp;Hub</span></h1>
-    <div class="who" id="who"></div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="themeBtn" class="theme-toggle" title="Day / night">🌙</button>
+      <div class="who" id="who"></div>
+    </div>
   </header>
   <nav id="nav" class="hide">
     <button data-tab="log" class="active"><span class="ic">➕</span>Log Task</button>
@@ -149,6 +171,24 @@ async function sbRpc(fn, args){
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 if(tg){ try{ tg.ready(); tg.expand(); }catch(e){} document.body.classList.add("tg"); }
 
+/* ---- theme (day / night) ---- */
+function currentTheme(){
+  let t=null; try{ t=localStorage.getItem("kpihub_theme"); }catch(e){}
+  if(t!=="light" && t!=="dark"){
+    t=(tg&&tg.colorScheme)?tg.colorScheme:((window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light");
+  }
+  return t;
+}
+function applyTheme(t){
+  document.body.classList.remove("theme-light","theme-dark");
+  document.body.classList.add(t==="dark"?"theme-dark":"theme-light");
+  try{ localStorage.setItem("kpihub_theme",t); }catch(e){}
+  const b=document.getElementById("themeBtn"); if(b) b.textContent=(t==="dark"?"☀️":"🌙");
+}
+applyTheme(currentTheme());
+(function(){ const b=document.getElementById("themeBtn");
+  if(b) b.onclick=()=>applyTheme(document.body.classList.contains("theme-dark")?"light":"dark"); })();
+
 /* ---- state ---- */
 const AUTH = { user:null, pass:null };               // pass kept in memory only
 const S = { teams:[], supports:[], settings:{}, tab:"log", _month:null };
@@ -164,7 +204,7 @@ function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;'
 function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){return null;} }
 
 /* set nav layout responsive to width */
-function applyNavMode(){ nav.classList.toggle("mobile", window.matchMedia("(max-width:759px)").matches); }
+function applyNavMode(){ nav.classList.toggle("mobile", window.matchMedia("(max-width:579px)").matches); }
 window.addEventListener("resize", applyNavMode);
 
 /* ============================================================
@@ -191,6 +231,7 @@ async function boot(){
    ============================================================ */
 function renderLogin(msg){
   nav.classList.add("hide");
+  document.body.classList.add("auth");
   document.getElementById("who").innerHTML="";
   app.innerHTML="";
   const box = el(`<div class="login-box">
@@ -235,6 +276,7 @@ function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); re
    ============================================================ */
 function startApp(){
   applyNavMode();
+  document.body.classList.remove("auth");
   nav.classList.remove("hide");
   document.getElementById("navSummary").classList.toggle("hide", !canSeeSummary());
   document.getElementById("navAdmin").classList.toggle("hide", !isAdmin());
