@@ -9,9 +9,8 @@
   :root{
     --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
     --border:#e5e7eb; --accent:#2563eb; --accent-text:#ffffff;
-    --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --chip:#eef2ff;
+    --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --chip:#eef2ff; --maxw:560px;
   }
-  /* Pull Telegram theme colors when available */
   body.tg{
     --bg:var(--tg-theme-bg-color,#f3f4f6);
     --card:var(--tg-theme-secondary-bg-color,#ffffff);
@@ -24,10 +23,11 @@
   html,body{margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
-  .wrap{max-width:560px;margin:0 auto;padding:12px 12px 90px}
-  header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 2px 12px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:12px 12px 92px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 2px 10px}
   header h1{font-size:18px;margin:0;font-weight:700}
   .who{font-size:12px;color:var(--muted);text-align:right}
+  .who a{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:600}
   .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--chip);color:var(--accent)}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
   label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
@@ -38,6 +38,7 @@
   .btn{background:var(--accent);color:var(--accent-text);width:100%}
   .btn.sec{background:var(--chip);color:var(--accent)}
   .btn.sm{width:auto;padding:7px 12px;font-size:13px}
+  .btn.danger{background:#fef2f2;color:#b91c1c}
   .row{display:flex;gap:8px}
   .row>*{flex:1}
   .pts{font-weight:700;color:var(--accent)}
@@ -56,11 +57,12 @@
   th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
   td.num,th.num{text-align:right}
   .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
-  nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--border);
-    display:flex;max-width:560px;margin:0 auto;z-index:20}
+  nav{display:flex;background:var(--card);border:1px solid var(--border)}
   nav button{flex:1;background:none;color:var(--muted);border-radius:0;padding:10px 4px;font-size:11px;font-weight:600}
   nav button.active{color:var(--accent)}
   nav button .ic{display:block;font-size:19px;line-height:1.1}
+  /* mobile: fixed bottom bar */
+  nav.mobile{position:fixed;left:0;right:0;bottom:0;max-width:var(--maxw);margin:0 auto;border-left:none;border-right:none;border-bottom:none;z-index:20}
   .hide{display:none}
   .notice{padding:10px 12px;border-radius:10px;font-size:13px;margin:8px 0}
   .notice.err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
@@ -70,42 +72,60 @@
   .spin{display:inline-block;width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--accent);
     border-radius:50%;animation:s 1s linear infinite}
   @keyframes s{to{transform:rotate(360deg)}}
+  .login-box{max-width:380px;margin:6vh auto 0}
+  .brand{text-align:center;margin-bottom:6px}
+  .brand .big{font-size:26px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:11px;letter-spacing:-.01em}
+  .brand .big .logo{width:44px;height:44px;margin:0}
+  .brandrow{display:flex;align-items:center}
+  .brandrow span{letter-spacing:-.01em}
+  .logo{width:1.4em;height:1.4em;margin-right:.4em;vertical-align:-0.32em;
+    filter:drop-shadow(0 2px 6px rgba(59,130,246,.38))}
+
+  /* ===== Desktop / PC layout ===== */
+  @media (min-width:760px){
+    :root{ --maxw:940px; }
+    .wrap{ padding:16px 20px 24px; }
+    header h1{ font-size:22px; }
+    nav{ position:static; border-radius:12px; margin:0 0 12px; }
+    nav button{ flex:0 1 auto; min-width:130px; padding:12px 18px; font-size:14px; border-right:1px solid var(--border); }
+    nav button .ic{ display:inline; font-size:16px; margin-right:6px; }
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+    .span2{ grid-column:1 / -1; }
+    .login-box{ margin-top:10vh; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 KPI Hub</h1>
+    <h1 class="brandrow" id="brandH"><span>KPI&nbsp;Hub</span></h1>
     <div class="who" id="who"></div>
   </header>
+  <nav id="nav" class="hide">
+    <button data-tab="log" class="active"><span class="ic">➕</span>Log Task</button>
+    <button data-tab="mine"><span class="ic">📋</span>My Entries</button>
+    <button data-tab="summary" id="navSummary"><span class="ic">📈</span>Summary</button>
+    <button data-tab="admin" id="navAdmin"><span class="ic">⚙️</span>Admin</button>
+  </nav>
   <div id="app"><div class="center"><span class="spin"></span><div>Loading…</div></div></div>
 </div>
 
-<nav id="nav" class="hide">
-  <button data-tab="log" class="active"><span class="ic">➕</span>Log Task</button>
-  <button data-tab="mine"><span class="ic">📋</span>My Entries</button>
-  <button data-tab="summary" id="navSummary"><span class="ic">📈</span>Summary</button>
-  <button data-tab="admin" id="navAdmin"><span class="ic">⚙️</span>Admin</button>
-</nav>
-
 <script>
 /* ============================================================
-   KPI Hub — Telegram mini app  (Supabase backend)
+   KPI Hub — Telegram mini app  (Supabase backend, username/password login)
    ============================================================ */
 const SUPABASE_URL = "https://rhyzyurplrceihdqfwtx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_64PoRnyLVJQrcrkNTsOTKA_tPJthL-n";
 const DAILY_DEFAULT = 40;
 
-const REST = SUPABASE_URL.replace(/\/+$/,"") + "/rest/v1/";
-const H = {
-  "apikey": SUPABASE_KEY,
-  "Authorization": "Bearer " + SUPABASE_KEY,
-  "Content-Type": "application/json"
-};
+const LOGO = '<svg class="logo" viewBox="0 0 48 48" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="kpiG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs><rect x="3" y="3" width="42" height="42" rx="13" fill="url(#kpiG)"/><rect x="3.5" y="3.5" width="41" height="41" rx="12.5" fill="none" stroke="#ffffff" stroke-opacity=".18"/><rect x="12" y="27" width="6.5" height="9" rx="2.2" fill="#ffffff" opacity=".72"/><rect x="20.75" y="22" width="6.5" height="14" rx="2.2" fill="#ffffff" opacity=".86"/><rect x="29.5" y="16" width="6.5" height="20" rx="2.2" fill="#ffffff"/><path d="M13 24.5 L23 19.5 L31.5 21.5 L37 13.5" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><circle cx="37" cy="13.5" r="2.4" fill="#ffffff"/></svg>';
 
-/* ---- tiny REST helpers (PostgREST) ---- */
+const REST = SUPABASE_URL.replace(/\/+$/,"") + "/rest/v1/";
+const H = { "apikey":SUPABASE_KEY, "Authorization":"Bearer "+SUPABASE_KEY, "Content-Type":"application/json" };
+const USER_COLS = "id,telegram_id,name,role,team_id,active,username"; // never password_hash
+
 async function sbGet(path){
-  const r = await fetch(REST + path, {headers:H});
+  const r = await fetch(REST+path, {headers:H});
   if(!r.ok) throw new Error("GET "+path+" → "+r.status+" "+(await r.text()));
   return r.json();
 }
@@ -119,100 +139,115 @@ async function sbPatch(table, match, body){
   if(!r.ok) throw new Error("PATCH "+table+" → "+r.status+" "+(await r.text()));
   return r.json();
 }
+async function sbRpc(fn, args){
+  const r = await fetch(REST+"rpc/"+fn, {method:"POST",headers:H,body:JSON.stringify(args)});
+  if(!r.ok) throw new Error((await r.text()) || ("RPC "+fn+" "+r.status));
+  return r.json();
+}
 
-/* ---- Telegram ---- */
+/* ---- Telegram (theme/expand only; auth is username/password) ---- */
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-let TGUSER = null;
-if(tg){
-  try{ tg.ready(); tg.expand(); }catch(e){}
-  document.body.classList.add("tg");
-  TGUSER = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : null;
-}
-// Fallback identity for testing in a normal browser (outside Telegram)
-if(!TGUSER){
-  TGUSER = { id: 999999, first_name: "Test", last_name: "User", username: "test" };
-}
-const TG_ID = TGUSER.id;
-const TG_NAME = [TGUSER.first_name, TGUSER.last_name].filter(Boolean).join(" ") || TGUSER.username || ("User "+TG_ID);
+if(tg){ try{ tg.ready(); tg.expand(); }catch(e){} document.body.classList.add("tg"); }
 
 /* ---- state ---- */
-const S = { me:null, teams:[], supports:[], settings:{}, tab:"log" };
+const AUTH = { user:null, pass:null };               // pass kept in memory only
+const S = { teams:[], supports:[], settings:{}, tab:"log", _month:null };
 const app = document.getElementById("app");
+const nav = document.getElementById("nav");
 const el = (h)=>{const d=document.createElement("div");d.innerHTML=h;return d.firstElementChild;};
 const roleName = {officer:"Officer",team_lead:"Team Lead",manager:"Manager",admin:"Admin"};
 function teamName(id){const t=S.teams.find(t=>t.id===id);return t?t.name:"—";}
 function teamColor(id){const t=S.teams.find(t=>t.id===id);return t?t.color:"#9ca3af";}
-function canSeeSummary(){return S.me && ["team_lead","manager","admin"].includes(S.me.role);}
-function isAdmin(){return S.me && S.me.role==="admin";}
+function canSeeSummary(){return AUTH.user && ["team_lead","manager","admin"].includes(AUTH.user.role);}
+function isAdmin(){return AUTH.user && AUTH.user.role==="admin";}
 function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){return null;} }
 
-/* ---- boot ---- */
+/* set nav layout responsive to width */
+function applyNavMode(){ nav.classList.toggle("mobile", window.matchMedia("(max-width:759px)").matches); }
+window.addEventListener("resize", applyNavMode);
+
+/* ============================================================
+   BOOT  →  login or app
+   ============================================================ */
 async function boot(){
+  try{ document.getElementById("brandH").innerHTML = LOGO + '<span>KPI&nbsp;Hub</span>'; }catch(e){}
   try{
     S.teams    = await sbGet("teams?select=*&order=id");
     S.supports = await sbGet("support_types?select=*&active=eq.true&order=points.desc");
     const st   = await sbGet("settings?select=*");
     st.forEach(r=>S.settings[r.key]=r.value);
-    await ensureUser();
-    document.getElementById("nav").classList.remove("hide");
-    if(!canSeeSummary()) document.getElementById("navSummary").classList.add("hide");
-    if(!isAdmin())       document.getElementById("navAdmin").classList.add("hide");
-    document.getElementById("who").innerHTML =
-      esc(S.me.name)+"<br><span class='badge'>"+roleName[S.me.role]+"</span> "+
-      "<span class='muted'>"+esc(teamName(S.me.team_id))+"</span>";
-    wireNav();
-    if(!S.me.team_id){ showOnboard(); } else { show("log"); }
   }catch(e){
     app.innerHTML = "<div class='notice err'>Could not connect to the database.<br><br>"+esc(e.message)+"</div>";
+    return;
+  }
+  const saved = ls("kpihub_session");
+  if(saved){ try{ AUTH.user = JSON.parse(saved); }catch(e){} }
+  if(AUTH.user) startApp(); else renderLogin();
+}
+
+/* ============================================================
+   LOGIN
+   ============================================================ */
+function renderLogin(msg){
+  nav.classList.add("hide");
+  document.getElementById("who").innerHTML="";
+  app.innerHTML="";
+  const box = el(`<div class="login-box">
+    <div class="brand"><div class="big">${LOGO}<span>KPI&nbsp;Hub</span></div><div class="muted">Please sign in</div></div>
+    <div class="card">
+      ${msg?`<div class="notice err">${esc(msg)}</div>`:""}
+      <label>Username</label>
+      <input id="li_user" autocomplete="username" autocapitalize="off" placeholder="your username">
+      <label>Password</label>
+      <input id="li_pass" type="password" autocomplete="current-password" placeholder="your password">
+      <div style="height:12px"></div>
+      <button class="btn" id="li_go">Sign in</button>
+    </div>
+  </div>`);
+  app.appendChild(box);
+  const go=()=>doLogin();
+  document.getElementById("li_go").onclick=go;
+  document.getElementById("li_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+}
+async function doLogin(){
+  const u=document.getElementById("li_user").value.trim();
+  const p=document.getElementById("li_pass").value;
+  if(!u||!p){ renderLogin("Enter username and password."); return; }
+  const btn=document.getElementById("li_go"); btn.disabled=true; btn.textContent="Signing in…";
+  try{
+    const rows = await sbRpc("app_login",{p_username:u,p_password:p});
+    if(Array.isArray(rows) && rows.length){
+      AUTH.user = rows[0]; AUTH.pass = p;
+      ls("kpihub_session", JSON.stringify(AUTH.user));
+      startApp();
+    }else{
+      renderLogin("Wrong username or password.");
+    }
+  }catch(e){
+    renderLogin("Login error: "+e.message);
   }
 }
+function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); renderLogin(); }
 
-async function ensureUser(){
-  const rows = await sbGet("users?telegram_id=eq."+TG_ID+"&select=*");
-  if(rows.length){ S.me = rows[0]; return; }
-  // first-ever user becomes admin; everyone else starts as officer (team chosen on onboarding)
-  const all = await sbGet("users?select=id");
-  const role = all.length===0 ? "admin" : "officer";
-  const made = await sbInsert("users", { telegram_id:TG_ID, name:TG_NAME, role:role, active:true });
-  S.me = made[0];
+/* ============================================================
+   START APP (after login)
+   ============================================================ */
+function startApp(){
+  applyNavMode();
+  nav.classList.remove("hide");
+  document.getElementById("navSummary").classList.toggle("hide", !canSeeSummary());
+  document.getElementById("navAdmin").classList.toggle("hide", !isAdmin());
+  document.getElementById("who").innerHTML =
+    esc(AUTH.user.name||AUTH.user.username)+"<br>"+
+    "<span class='badge'>"+roleName[AUTH.user.role]+"</span> "+
+    "<span class='muted'>"+esc(teamName(AUTH.user.team_id))+"</span> · "+
+    "<a id='logoutLink'>Log out</a>";
+  document.getElementById("logoutLink").onclick=logout;
+  nav.querySelectorAll("button").forEach(b=>b.onclick=()=>show(b.dataset.tab));
+  show("log");
 }
-
-/* ---- onboarding: pick your team ---- */
-function showOnboard(){
-  setActive(null);
-  app.innerHTML="";
-  const opts = S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("");
-  const c = el(`<div class="card">
-    <h2 class="sec">👋 Welcome, ${esc(S.me.name)}</h2>
-    <p class="muted">Before you start, choose the team you belong to. (An admin can change this later.)</p>
-    <label>Your team</label>
-    <select id="obTeam">${opts}</select>
-    <div style="height:10px"></div>
-    <button class="btn" id="obSave">Save & continue</button>
-  </div>`);
-  app.appendChild(c);
-  document.getElementById("obSave").onclick = async ()=>{
-    const tid = parseInt(document.getElementById("obTeam").value,10);
-    try{
-      const u = await sbPatch("users","id=eq."+S.me.id,{team_id:tid});
-      S.me = u[0];
-      document.getElementById("who").innerHTML =
-        esc(S.me.name)+"<br><span class='badge'>"+roleName[S.me.role]+"</span> "+
-        "<span class='muted'>"+esc(teamName(S.me.team_id))+"</span>";
-      show("log");
-    }catch(e){ alert("Error: "+e.message); }
-  };
-}
-
-/* ---- nav ---- */
-function wireNav(){
-  document.querySelectorAll("#nav button").forEach(b=>{
-    b.onclick=()=>show(b.dataset.tab);
-  });
-}
-function setActive(tab){
-  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
-}
+function setActive(tab){ nav.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab)); }
 function show(tab){
   S.tab=tab; setActive(tab);
   if(tab==="log") renderLog();
@@ -228,32 +263,24 @@ function renderLog(){
   const today = new Date().toISOString().slice(0,10);
   const stOpts = S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
   app.innerHTML="";
+  const noTeam = !AUTH.user.team_id;
   const c = el(`<div class="card">
     <h2 class="sec">➕ Log a task</h2>
-    <div id="logMsg"></div>
-    <label>Start date</label>
-    <input type="date" id="f_start" value="${today}">
-    <label>Merchant name</label>
-    <input id="f_merchant" placeholder="e.g. ABC Shop">
-    <div class="row">
+    <div id="logMsg">${noTeam?"<div class='notice err'>Your team isn't set yet. Ask your admin to assign your team.</div>":""}</div>
+    <div class="grid2">
+      <div><label>Start date</label><input type="date" id="f_start" value="${today}"></div>
+      <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
       <div><label>Contact</label><input id="f_contact" placeholder="name / phone"></div>
       <div><label>Service</label><input id="f_service" placeholder="service"></div>
-    </div>
-    <label>Category</label>
-    <input id="f_category" placeholder="category">
-    <label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label>
-    <select id="f_support">${stOpts}</select>
-    <div class="row">
-      <div><label>Status</label>
-        <select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select>
-      </div>
+      <div><label>Category</label><input id="f_category" placeholder="category"></div>
+      <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label><select id="f_support">${stOpts}</select></div>
+      <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
       <div><label>Resolved date</label><input type="date" id="f_resolved"></div>
+      <div class="span2"><label>Remark</label><textarea id="f_remark" placeholder="optional notes"></textarea></div>
     </div>
-    <label>Remark</label>
-    <textarea id="f_remark" placeholder="optional notes"></textarea>
     <div style="height:12px"></div>
     <button class="btn" id="saveEntry">Save entry</button>
-    <p class="muted" style="margin-top:10px">Team: <b>${esc(teamName(S.me.team_id))}</b> · Logged as <b>${esc(S.me.name)}</b></p>
+    <p class="muted" style="margin-top:10px">Team: <b>${esc(teamName(AUTH.user.team_id))}</b> · Logged as <b>${esc(AUTH.user.name||AUTH.user.username)}</b></p>
   </div>`);
   app.appendChild(c);
   const sel=document.getElementById("f_support"), hint=document.getElementById("ptsHint");
@@ -280,9 +307,9 @@ async function saveEntry(){
       status: document.getElementById("f_status").value,
       resolved_date: document.getElementById("f_resolved").value || null,
       remark: document.getElementById("f_remark").value.trim() || null,
-      team_id: S.me.team_id,
-      staff_telegram_id: TG_ID,
-      staff_name: S.me.name
+      team_id: AUTH.user.team_id,
+      staff_user_id: AUTH.user.id,
+      staff_name: AUTH.user.name || AUTH.user.username
     });
     if(tg){ try{ tg.HapticFeedback.notificationOccurred("success"); }catch(e){} }
     renderLog();
@@ -299,7 +326,7 @@ async function saveEntry(){
 async function renderMine(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
-    const rows=await sbGet("entries?staff_telegram_id=eq."+TG_ID+"&select=*,support_types(name)&order=created_at.desc&limit=100");
+    const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&select=*,support_types(name)&order=created_at.desc&limit=200");
     const total=rows.reduce((a,r)=>a+(r.points||0),0);
     app.innerHTML="";
     app.appendChild(el(`<div class="card"><h2 class="sec">📋 My entries</h2>
@@ -332,7 +359,7 @@ async function changeStatus(r){
 }
 
 /* ============================================================
-   SUMMARY  (team totals vs target + flags)
+   SUMMARY
    ============================================================ */
 function monthKey(d){return d.toISOString().slice(0,7);}
 async function renderSummary(){
@@ -342,7 +369,7 @@ async function renderSummary(){
   try{
     const [y,m]=mk.split("-").map(Number);
     const from = `${mk}-01`;
-    const to = new Date(y, m, 1).toISOString().slice(0,10); // first day of next month
+    const to = new Date(y, m, 1).toISOString().slice(0,10);
     const entries = await sbGet(`entries?select=team_id,points,start_date&start_date=gte.${from}&start_date=lt.${to}&limit=5000`);
     const users   = await sbGet("users?select=team_id,active&active=eq.true");
     const cal     = await sbGet(`month_calendar?select=*&month=eq.${mk}`);
@@ -355,21 +382,18 @@ async function renderSummary(){
     targets.forEach(t=>{ leaveBy[t.team_id]=t.leave_days||0; });
 
     app.innerHTML="";
-    // month selector
     const head=el(`<div class="card">
       <h2 class="sec">📈 Team summary</h2>
       <label>Month</label>
       <input type="month" id="mSel" value="${mk}">
       ${calRow?`<p class="muted" style="margin-top:8px">Working days: <b>${calRow.working_days}</b> · Holidays: <b>${calRow.holidays}</b></p>`
-             :`<div class="notice err" style="margin-top:8px">No working days set for this month. Targets need Admin → set Month calendar.</div>`}
+             :`<div class="notice err" style="margin-top:8px">No working days set for this month. Set it in Admin → Month setup.</div>`}
     </div>`);
     app.appendChild(head);
     document.getElementById("mSel").onchange=(e)=>{S._month=e.target.value;renderSummary();};
 
-    // scope: managers/leads see their team(s); admin sees all
     let teamsToShow = S.teams;
-    if(S.me.role==="team_lead") teamsToShow = S.teams.filter(t=>t.id===S.me.team_id);
-    // (manager mapping to multiple teams can be added later; for now manager+admin see all)
+    if(AUTH.user.role==="team_lead") teamsToShow = S.teams.filter(t=>t.id===AUTH.user.team_id);
 
     const tbl=el(`<div class="card"><table>
       <thead><tr><th>Team</th><th class="num">Staff</th><th class="num">Target</th><th class="num">Actual</th><th>Flag</th></tr></thead>
@@ -408,39 +432,65 @@ async function renderSummary(){
 }
 
 /* ============================================================
-   ADMIN
+   ADMIN  (needs admin password in memory for staff changes)
    ============================================================ */
 async function renderAdmin(){
+  if(!AUTH.pass){ renderAdminUnlock(); return; }
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
-    const users=await sbGet("users?select=*&order=id");
+    const users=await sbGet("users?select="+USER_COLS+"&order=id");
     app.innerHTML="";
     app.appendChild(el(`<div class="card"><h2 class="sec">⚙️ Admin</h2>
-      <p class="muted">Assign teams & roles, set points, and set monthly working days.</p></div>`));
+      <p class="muted">Create staff logins, assign teams & roles, set points and monthly working days.</p></div>`));
 
-    // --- Users ---
+    // --- Add staff ---
+    const teamOpts=S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("");
+    const roleOpts=["officer","team_lead","manager","admin"].map(r=>`<option value="${r}">${roleName[r]}</option>`).join("");
+    const addc=el(`<div class="card"><h2 class="sec">➕ Add staff login</h2>
+      <div id="addMsg"></div>
+      <div class="grid2">
+        <div><label>Full name</label><input id="a_name" placeholder="e.g. Sok Dara"></div>
+        <div><label>Username</label><input id="a_user" autocapitalize="off" placeholder="e.g. dara"></div>
+        <div><label>Password</label><input id="a_pass" placeholder="set a password"></div>
+        <div><label>Team</label><select id="a_team">${teamOpts}</select></div>
+        <div><label>Role</label><select id="a_role">${roleOpts}</select></div>
+      </div>
+      <div style="height:10px"></div>
+      <button class="btn" id="a_save">Create staff</button>
+    </div>`);
+    app.appendChild(addc);
+    document.getElementById("a_save").onclick=addStaff;
+
+    // --- Existing staff ---
     const uc=el(`<div class="card"><h2 class="sec">👤 Staff (${users.length})</h2><div id="uList"></div></div>`);
     app.appendChild(uc);
     const uList=uc.querySelector("#uList");
     users.forEach(u=>{
-      const teamOpts=S.teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?"selected":""}>${esc(t.name)}</option>`).join("");
-      const roles=["officer","team_lead","manager","admin"];
-      const roleOpts=roles.map(r=>`<option value="${r}" ${r===u.role?"selected":""}>${roleName[r]}</option>`).join("");
+      const tOpts=S.teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?"selected":""}>${esc(t.name)}</option>`).join("");
+      const rOpts=["officer","team_lead","manager","admin"].map(r=>`<option value="${r}" ${r===u.role?"selected":""}>${roleName[r]}</option>`).join("");
       const row=el(`<div class="entry">
-        <div class="merchant">${esc(u.name||("User "+u.telegram_id))} ${u.active?"":"<span class='muted'>(inactive)</span>"}</div>
-        <div class="row" style="margin-top:6px">
-          <div><label>Team</label><select data-f="team">${teamOpts}</select></div>
-          <div><label>Role</label><select data-f="role">${roleOpts}</select></div>
+        <div class="merchant">${esc(u.name||u.username||("User "+u.id))} <span class="muted">@${esc(u.username||"—")}</span></div>
+        <div class="grid2" style="margin-top:6px">
+          <div><label>Team</label><select data-f="team">${tOpts}</select></div>
+          <div><label>Role</label><select data-f="role">${rOpts}</select></div>
+          <div><label>Reset password (optional)</label><input data-f="pass" placeholder="leave blank to keep"></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn sec sm" data-save="${u.id}">Save</button></div>
         </div>
-        <div style="margin-top:8px"><button class="btn sec sm" data-save="${u.id}">Save</button></div>
       </div>`);
       row.querySelector("[data-save]").onclick=async()=>{
-        const team=parseInt(row.querySelector("[data-f=team]").value,10);
-        const role=row.querySelector("[data-f=role]").value;
-        try{ await sbPatch("users","id=eq."+u.id,{team_id:team,role:role});
-          const b=row.querySelector("[data-save]"); b.textContent="Saved ✓"; setTimeout(()=>b.textContent="Save",1200);
-          if(u.id===S.me.id){ S.me.role=role; S.me.team_id=team; }
-        }catch(e){ alert("Error: "+e.message); }
+        const b=row.querySelector("[data-save]"); b.disabled=true; b.textContent="Saving…";
+        try{
+          await sbRpc("app_save_user",{
+            p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
+            p_user_id:u.id, p_name:u.name, p_username:u.username,
+            p_password: row.querySelector("[data-f=pass]").value || "",
+            p_team_id: parseInt(row.querySelector("[data-f=team]").value,10),
+            p_role: row.querySelector("[data-f=role]").value,
+            p_active: true
+          });
+          if(u.id===AUTH.user.id){ AUTH.user.role=row.querySelector("[data-f=role]").value; AUTH.user.team_id=parseInt(row.querySelector("[data-f=team]").value,10); ls("kpihub_session",JSON.stringify(AUTH.user)); }
+          b.textContent="Saved ✓"; setTimeout(()=>{b.textContent="Save";b.disabled=false;},1200);
+        }catch(e){ b.disabled=false; b.textContent="Save"; alert("Error: "+e.message); }
       };
       uList.appendChild(row);
     });
@@ -464,7 +514,7 @@ async function renderAdmin(){
       sList.appendChild(row);
     });
 
-    // --- Month calendar + team leave (targets) ---
+    // --- Month setup ---
     const mk=monthKey(new Date());
     const cal=await sbGet(`month_calendar?select=*&month=eq.${mk}`);
     const cRow=cal[0]||{working_days:"",holidays:0};
@@ -506,6 +556,48 @@ async function renderAdmin(){
     });
 
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+}
+function renderAdminUnlock(){
+  app.innerHTML="";
+  const c=el(`<div class="card" style="max-width:360px;margin:20px auto">
+    <h2 class="sec">🔒 Confirm it's you</h2>
+    <p class="muted">Re-enter your password to manage staff.</p>
+    <div id="auMsg"></div>
+    <input id="au_pass" type="password" placeholder="your password">
+    <div style="height:10px"></div>
+    <button class="btn" id="au_go">Unlock Admin</button>
+  </div>`);
+  app.appendChild(c);
+  const go=async()=>{
+    const p=document.getElementById("au_pass").value;
+    try{
+      const rows=await sbRpc("app_login",{p_username:AUTH.user.username,p_password:p});
+      if(Array.isArray(rows)&&rows.length){ AUTH.pass=p; renderAdmin(); }
+      else document.getElementById("auMsg").innerHTML="<div class='notice err'>Wrong password.</div>";
+    }catch(e){ document.getElementById("auMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+  };
+  document.getElementById("au_go").onclick=go;
+  document.getElementById("au_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+}
+async function addStaff(){
+  const msg=document.getElementById("addMsg");
+  const name=document.getElementById("a_name").value.trim();
+  const user=document.getElementById("a_user").value.trim();
+  const pass=document.getElementById("a_pass").value;
+  if(!name||!user||!pass){ msg.innerHTML="<div class='notice err'>Name, username and password are required.</div>"; return; }
+  const btn=document.getElementById("a_save"); btn.disabled=true; btn.textContent="Creating…";
+  try{
+    await sbRpc("app_save_user",{
+      p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
+      p_user_id:null, p_name:name, p_username:user, p_password:pass,
+      p_team_id: parseInt(document.getElementById("a_team").value,10),
+      p_role: document.getElementById("a_role").value, p_active:true
+    });
+    renderAdmin();
+  }catch(e){
+    msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>";
+    btn.disabled=false; btn.textContent="Create staff";
+  }
 }
 
 boot();
