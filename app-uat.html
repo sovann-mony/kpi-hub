@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KPI Hub</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="favicon.svg">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -65,9 +67,11 @@
   td.num,th.num{text-align:right}
   .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
   nav{display:flex;background:var(--card);border:1px solid var(--border)}
-  nav button{flex:1;background:none;color:var(--muted);border-radius:0;padding:10px 4px;font-size:11px;font-weight:600}
+  nav button{flex:1;background:none;color:var(--muted);border-radius:0;padding:10px 4px;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px}
   nav button.active{color:var(--accent)}
-  nav button .ic{display:block;font-size:19px;line-height:1.1}
+  nav button .ic{display:flex;align-items:center;justify-content:center;line-height:1}
+  nav button .ic svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .navcap{display:none;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7b88a9;padding:2px 14px 10px}
   /* mobile: fixed bottom bar */
   nav.mobile{position:fixed;left:0;right:0;bottom:0;max-width:var(--maxw);margin:0 auto;border-left:none;border-right:none;border-bottom:none;z-index:20}
   .hide{display:none}
@@ -102,12 +106,16 @@
     body:not(.auth) nav{
       grid-area:nav; flex-direction:column; align-items:stretch;
       position:sticky; top:14px; align-self:start;
-      border-radius:12px; overflow:hidden; margin:0;
+      border-radius:18px; overflow:hidden; margin:0;
+      background:linear-gradient(180deg,#1f2a49 0%,#131a2e 100%); border:none;
+      padding:16px 12px; box-shadow:0 16px 40px rgba(15,23,42,.24);
     }
-    body:not(.auth) nav button{ justify-content:flex-start; border-right:none;
-      border-bottom:1px solid var(--border); min-width:0; padding:12px 16px; font-size:14px; }
-    body:not(.auth) nav button:last-child{ border-bottom:none; }
-    body:not(.auth) nav button .ic{ display:inline; font-size:16px; margin-right:9px; }
+    body:not(.auth) .navcap{ display:block; }
+    body:not(.auth) nav button{ flex-direction:row; justify-content:flex-start; gap:11px;
+      border:none; min-width:0; padding:12px 14px; font-size:14px; color:#aeb9d6; border-radius:12px; margin:2px 0; }
+    body:not(.auth) nav button:hover{ background:rgba(255,255,255,.07); color:#fff; }
+    body:not(.auth) nav button .ic{ display:flex; margin:0; }
+    body:not(.auth) nav button .ic svg{ width:18px; height:18px; }
     .login-box{ margin-top:9vh; }
   }
   /* ===== Full desktop: 2-column forms ===== */
@@ -149,8 +157,11 @@
   th,td{padding:10px 6px}
   tbody tr:last-child td{border-bottom:none}
   nav{box-shadow:var(--shadow)}
-  nav button{transition:color .15s,background .15s}
-  nav.mobile{border-radius:16px 16px 0 0;box-shadow:0 -4px 20px rgba(15,23,42,.08)}
+  nav button{transition:color .15s,background .15s,box-shadow .15s}
+  nav.mobile{border-radius:18px 18px 0 0;box-shadow:0 -6px 24px rgba(15,23,42,.16);background:linear-gradient(180deg,#1f2a49 0%,#131a2e 100%);border:none;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  nav.mobile button{color:#aeb9d6;border-radius:12px;margin:0 2px}
+  nav.mobile button.active{color:#fff;background:rgba(255,255,255,.10)}
+  nav.mobile .navcap{display:none}
   .notice{border-radius:12px}
   .theme-toggle{width:38px;height:38px;min-width:38px;box-shadow:var(--shadow)}
   .theme-toggle:hover{transform:translateY(-1px)}
@@ -163,10 +174,9 @@
   .login-box .card::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--grad)}
   body.auth{background:radial-gradient(900px 440px at 50% -10%,rgba(99,102,241,.16),transparent 70%) var(--bg)}
   @media (min-width:580px){
-    body:not(.auth) nav{ border-radius:16px; padding:6px; }
-    body:not(.auth) nav button{ border-bottom:none; border-radius:11px; margin:1px 0; position:relative; }
-    body:not(.auth) nav button.active{ background:var(--chip); color:var(--accent); font-weight:700; }
-    body:not(.auth) nav button.active::before{ content:""; position:absolute; left:0; top:9px; bottom:9px; width:3px; border-radius:0 3px 3px 0; background:var(--grad); }
+    body:not(.auth) nav button{ position:relative; }
+    body:not(.auth) nav button.active{ background:var(--grad); color:#fff; font-weight:700; box-shadow:0 8px 20px rgba(59,130,246,.34); }
+    body:not(.auth) nav button.active:hover{ color:#fff; }
   }
 
   /* ===== Dashboard ===== */
@@ -265,11 +275,12 @@
     </div>
   </header>
   <nav id="nav" class="hide">
-    <button data-tab="log" id="navLog" class="active"><span class="ic">➕</span>Log Task</button>
-    <button data-tab="mine" id="navMine"><span class="ic">📋</span>My Entries</button>
-    <button data-tab="summary" id="navSummary"><span class="ic">📈</span>Summary</button>
-    <button data-tab="dashboard" id="navDashboard"><span class="ic">📊</span>Dashboard</button>
-    <button data-tab="admin" id="navAdmin"><span class="ic">⚙️</span>Admin</button>
+    <div class="navcap">Menu</div>
+    <button data-tab="log" id="navLog" class="active"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M12 8v8M8 12h8"/></svg></span>Log Task</button>
+    <button data-tab="mine" id="navMine"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></span>My Entries</button>
+    <button data-tab="summary" id="navSummary"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M15 7h5v5"/></svg></span>Summary</button>
+    <button data-tab="dashboard" id="navDashboard"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/></svg></span>Dashboard</button>
+    <button data-tab="admin" id="navAdmin"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Admin</button>
   </nav>
   <div id="app"><div class="center"><span class="spin"></span><div>Loading…</div></div></div>
 </div>
