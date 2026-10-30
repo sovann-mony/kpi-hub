@@ -455,7 +455,7 @@ function renderLog(){
     <div class="grid2">
       <div><label>Start date</label>${dfield("f_start",today)}</div>
       <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
-      <div><label>Contact</label><input id="f_contact" placeholder="Phone Number / Email"></div>
+      <div><label>Contact</label><input id="f_contact" placeholder="phone number / email"></div>
       <div><label>Service</label><select id="f_service">${svcOpts}</select></div>
       <div><label>Category</label><select id="f_category">${catOpts}</select></div>
       <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label><select id="f_support">${stOpts}</select></div>
@@ -699,7 +699,7 @@ async function reloadCategories(){ S.categories = await sbGet("categories?select
 function fmtDate(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); if(p.length!==3) return d;
   const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return p[2]+"-"+(m[parseInt(p[1],10)-1]||p[1])+"-"+p[0]; }
 function dfield(id,value){ const v=value?String(value).slice(0,10):"";
-  return '<div class="df"><input type="text" class="df-txt" readonly placeholder="DD-MMM-YYYY" value="'+(v?esc(fmtDate(v)):"")+'">'
+  return '<div class="df"><input type="text" class="df-txt" readonly placeholder="dd-mmm-yyyy" value="'+(v?esc(fmtDate(v)):"")+'">'
     +'<input type="date" id="'+id+'" class="df-date" value="'+esc(v)+'"></div>'; }
 function wireDF(root){ (root||document).querySelectorAll('.df .df-date').forEach(function(d){ if(d.dataset.w) return; d.dataset.w="1";
   var txt=d.parentElement.querySelector('.df-txt'); var sync=function(){ txt.value=d.value?fmtDate(d.value):""; };
