@@ -106,12 +106,13 @@
     body:not(.auth) nav{
       grid-area:nav; flex-direction:column; align-items:stretch;
       position:sticky; top:14px; align-self:start;
-      border-radius:18px; overflow:hidden; margin:0;
+      min-height:calc(100vh - 28px); overflow-y:auto;
+      border-radius:18px; margin:0;
       background:linear-gradient(180deg,#1f2a49 0%,#131a2e 100%); border:none;
       padding:16px 12px; box-shadow:0 16px 40px rgba(15,23,42,.24);
     }
     body:not(.auth) .navcap{ display:block; }
-    body:not(.auth) nav button{ flex-direction:row; justify-content:flex-start; gap:11px;
+    body:not(.auth) nav button{ flex:0 0 auto; flex-direction:row; justify-content:flex-start; gap:11px;
       border:none; min-width:0; padding:12px 14px; font-size:14px; color:#aeb9d6; border-radius:12px; margin:2px 0; }
     body:not(.auth) nav button:hover{ background:rgba(255,255,255,.07); color:#fff; }
     body:not(.auth) nav button .ic{ display:flex; margin:0; }
