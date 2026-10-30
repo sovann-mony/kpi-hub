@@ -233,7 +233,15 @@
   .bar-target{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:2px;z-index:1}
 
   /* ===== My Entries full table ===== */
-  .etable{min-width:780px}
+  .etable{min-width:920px}
+  /* ===== Edit modal ===== */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:24px 16px;overflow:auto}
+  .modal .box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;max-width:580px;width:100%;box-shadow:var(--shadow-lg)}
+  /* ===== Custom DD-MMM-YYYY date field ===== */
+  .df{position:relative}
+  .df .df-txt{width:100%;cursor:pointer}
+  .df .df-date{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0;padding:0;border:none}
+  .df:focus-within .df-txt{border-color:var(--accent);box-shadow:var(--ring)}
   .etable th,.etable td{padding:12px 10px;vertical-align:middle}
   .etable td.rem{color:var(--muted);max-width:240px}
   .etable .nowrap{white-space:nowrap}
@@ -436,7 +444,7 @@ function show(tab){
    ============================================================ */
 function renderLog(){
   const today = new Date().toISOString().slice(0,10);
-  const stOpts = S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
+  const stOpts = '<option value="">—</option>' + S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
   const svcOpts = '<option value="">—</option>' + S.services.map(s=>`<option>${esc(s.name)}</option>`).join("");
   const catOpts = '<option value="">—</option>' + S.categories.map(c=>`<option>${esc(c.name)}</option>`).join("");
   app.innerHTML="";
@@ -445,14 +453,14 @@ function renderLog(){
     <h2 class="sec">➕ Log a task</h2>
     <div id="logMsg">${noTeam?"<div class='notice err'>Your team isn't set yet. Ask your admin to assign your team.</div>":""}</div>
     <div class="grid2">
-      <div><label>Start date</label><input type="date" id="f_start" value="${today}"></div>
+      <div><label>Start date</label>${dfield("f_start","")}</div>
       <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
-      <div><label>Contact</label><input id="f_contact" placeholder="name / phone"></div>
+      <div><label>Contact</label><input id="f_contact" placeholder="phone number / email"></div>
       <div><label>Service</label><select id="f_service">${svcOpts}</select></div>
       <div><label>Category</label><select id="f_category">${catOpts}</select></div>
       <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label><select id="f_support">${stOpts}</select></div>
       <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
-      <div><label>Resolved date</label><input type="date" id="f_resolved"></div>
+      <div><label>Resolved date</label>${dfield("f_resolved","")}</div>
       <div class="span2"><label>Remark</label><textarea id="f_remark" placeholder="optional notes"></textarea></div>
     </div>
     <div style="height:12px"></div>
@@ -460,16 +468,20 @@ function renderLog(){
     <p class="muted" style="margin-top:10px">Team: <b>${esc(teamName(AUTH.user.team_id))}</b> · Logged as <b>${esc(AUTH.user.name||AUTH.user.username)}</b></p>
   </div>`);
   app.appendChild(c);
+  wireDF(c);
   const sel=document.getElementById("f_support"), hint=document.getElementById("ptsHint");
-  const updPts=()=>{const o=sel.selectedOptions[0];hint.textContent=o?("= "+o.dataset.pts+" points"):"";};
+  const updPts=()=>{const o=sel.selectedOptions[0];hint.textContent=(o&&o.dataset.pts)?("= "+o.dataset.pts+" points"):"";};
   sel.onchange=updPts; updPts();
   document.getElementById("saveEntry").onclick=saveEntry;
 }
 async function saveEntry(){
   const msg=document.getElementById("logMsg");
+  const startDate=document.getElementById("f_start").value;
+  if(!startDate){ msg.innerHTML="<div class='notice err'>Please choose a start date.</div>"; return; }
   const merchant=document.getElementById("f_merchant").value.trim();
   if(!merchant){ msg.innerHTML="<div class='notice err'>Please enter a merchant name.</div>"; return; }
   const supId=parseInt(document.getElementById("f_support").value,10);
+  if(!supId){ msg.innerHTML="<div class='notice err'>Please choose a support type.</div>"; return; }
   const sup=S.supports.find(s=>s.id===supId);
   const btn=document.getElementById("saveEntry"); btn.disabled=true; btn.textContent="Saving…";
   try{
@@ -542,11 +554,11 @@ async function renderMine(){
         <span class="muted">${rows.length} total · change status anytime</span>
       </div>
       <div style="overflow-x:auto;margin-top:8px"><table class="etable">
-        <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th>Status</th></tr></thead>
+        <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th class="nowrap">Resolved</th><th>Status</th><th></th></tr></thead>
         <tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
-    if(!rows.length){ list.innerHTML="<tr><td colspan='6' class='center'>No entries yet. Log your first task!</td></tr>"; return; }
+    if(!rows.length){ list.innerHTML="<tr><td colspan='8' class='center'>No entries yet. Log your first task!</td></tr>"; return; }
     let rowsHtml="";
     rows.forEach(r=>{
       const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
@@ -557,32 +569,122 @@ async function renderMine(){
         + `<td>${esc(r.contact||"N/A")}</td>`
         + `<td>${esc(sup||"—")}</td>`
         + `<td class="rem">${esc(r.remark||"—")}</td>`
+        + `<td class="nowrap">${esc(fmtDate(r.resolved_date))}</td>`
         + `<td><select class="statsel ${stc}" data-id="${r.id}">`
           + `<option${r.status==="Pending"?" selected":""}>Pending</option>`
           + `<option${r.status==="In Progress"?" selected":""}>In Progress</option>`
           + `<option${r.status==="Done"?" selected":""}>Done</option>`
-        + `</select></td></tr>`;
+        + `</select></td>`
+        + `<td><div class="uact"><button class="iconbtn" data-edit="${r.id}" title="Edit entry">✏️</button><button class="iconbtn danger" data-del="${r.id}" title="Remove entry">🗑️</button></div></td></tr>`;
     });
     list.innerHTML = rowsHtml;
     const byId={}; rows.forEach(r=>byId[r.id]=r);
     list.querySelectorAll("select[data-id]").forEach(sel=>{
       const r=byId[parseInt(sel.getAttribute("data-id"),10)];
       sel.onchange=async()=>{
-        const next=sel.value; const body={status:next};
-        if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
-        try{ await sbPatch("entries","id=eq."+r.id,body); r.status=next; if(body.resolved_date) r.resolved_date=body.resolved_date;
-          sel.className="statsel "+(next==="Done"?"done":(next==="In Progress"?"progress":"pending"));
+        const next=sel.value;
+        if(next==="Done"){
+          const def=(r.resolved_date? String(r.resolved_date).slice(0,10) : new Date().toISOString().slice(0,10));
+          const rd=await askResolvedDate(def);
+          if(!rd){ sel.value=r.status; return; }   // cancelled → keep previous status
+          try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd}); r.status="Done"; r.resolved_date=rd; renderMine(); }
+          catch(e){ alert("Error: "+e.message); sel.value=r.status; }
+          return;
+        }
+        try{ await sbPatch("entries","id=eq."+r.id,{status:next}); r.status=next;
+          sel.className="statsel "+(next==="In Progress"?"progress":"pending");
         }catch(e){ alert("Error: "+e.message); sel.value=r.status; }
       };
     });
+    list.querySelectorAll("button[data-del]").forEach(btn=>{
+      const id=parseInt(btn.getAttribute("data-del"),10);
+      btn.onclick=async()=>{
+        if(!(await askConfirm("Remove this entry? It will be permanently deleted."))) return;
+        try{ const x=await fetch(REST+"entries?id=eq."+id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); renderMine(); }
+        catch(e){ alert("Error: "+e.message); }
+      };
+    });
+    list.querySelectorAll("button[data-edit]").forEach(btn=>{
+      const r=byId[parseInt(btn.getAttribute("data-edit"),10)];
+      btn.onclick=()=>editEntry(r);
+    });
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
-async function changeStatus(r){
-  const next = r.status==="Pending"?"In Progress":(r.status==="In Progress"?"Done":"Pending");
-  const body={status:next};
-  if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
-  try{ await sbPatch("entries","id=eq."+r.id,body); renderMine(); }
-  catch(e){ alert("Error: "+e.message); }
+function editEntry(r){
+  const svcOpts='<option value="">—</option>'+S.services.map(s=>`<option${s.name===r.service?" selected":""}>${esc(s.name)}</option>`).join("");
+  const catOpts='<option value="">—</option>'+S.categories.map(c=>`<option${c.name===r.category?" selected":""}>${esc(c.name)}</option>`).join("");
+  const stOpts=S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}"${s.id===r.support_type_id?" selected":""}>${esc(s.name)} (${s.points} pts)</option>`).join("");
+  const statOpts=["Pending","In Progress","Done"].map(s=>`<option${s===r.status?" selected":""}>${s}</option>`).join("");
+  const m=el(`<div class="modal"><div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✏️ Edit entry</h2><button class="iconbtn" id="edX" title="Close">✕</button></div>
+    <div id="edMsg"></div>
+    <div class="grid2">
+      <div><label>Start date</label>${dfield("ed_start",(r.start_date||"").slice(0,10))}</div>
+      <div><label>Task / merchant</label><input id="ed_merchant" value="${esc(r.merchant_name||"")}"></div>
+      <div><label>Contact</label><input id="ed_contact" value="${esc(r.contact||"")}"></div>
+      <div><label>Service</label><select id="ed_service">${svcOpts}</select></div>
+      <div><label>Category</label><select id="ed_category">${catOpts}</select></div>
+      <div><label>Support type</label><select id="ed_support">${stOpts}</select></div>
+      <div><label>Status</label><select id="ed_status">${statOpts}</select></div>
+      <div><label>Resolved date</label>${dfield("ed_resolved",(r.resolved_date||"").slice(0,10))}</div>
+      <div class="span2"><label>Remark</label><textarea id="ed_remark">${esc(r.remark||"")}</textarea></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn sec" id="edCancel">Cancel</button>
+      <button class="btn" id="edSave">Save changes</button>
+    </div>
+  </div></div>`);
+  document.body.appendChild(m);
+  wireDF(m);
+  const close=()=>m.remove();
+  m.querySelector("#edX").onclick=close;
+  m.querySelector("#edCancel").onclick=close;
+  m.onclick=(e)=>{ if(e.target===m) close(); };
+  m.querySelector("#edSave").onclick=async()=>{
+    const supId=parseInt(document.getElementById("ed_support").value,10);
+    const sup=S.supports.find(s=>s.id===supId);
+    const body={
+      start_date: document.getElementById("ed_start").value||null,
+      merchant_name: document.getElementById("ed_merchant").value.trim()||null,
+      contact: document.getElementById("ed_contact").value.trim()||null,
+      service: document.getElementById("ed_service").value.trim()||null,
+      category: document.getElementById("ed_category").value.trim()||null,
+      support_type_id: supId,
+      points: sup?sup.points:0,
+      status: document.getElementById("ed_status").value,
+      resolved_date: document.getElementById("ed_resolved").value||null,
+      remark: document.getElementById("ed_remark").value.trim()||null
+    };
+    const b=document.getElementById("edSave"); b.disabled=true; b.textContent="Saving…";
+    try{ await sbPatch("entries","id=eq."+r.id,body); close(); renderMine(); }
+    catch(e){ document.getElementById("edMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save changes"; }
+  };
+}
+
+function askResolvedDate(defDate){
+  return new Promise(resolve=>{
+    const m=el(`<div class="modal"><div class="box" style="max-width:360px">
+      <h2 class="sec">✅ Mark as Done</h2>
+      <p class="muted" style="margin:4px 0 12px">Please set the Resolved date to complete this task.</p>
+      <label>Resolved date</label>
+      ${dfield("rdDate",defDate||"")}
+      <div id="rdMsg"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn sec" id="rdCancel">Cancel</button>
+        <button class="btn" id="rdOk">Complete</button>
+      </div>
+    </div></div>`);
+    document.body.appendChild(m);
+    wireDF(m);
+    const finish=(val)=>{ m.remove(); resolve(val); };
+    m.querySelector("#rdCancel").onclick=()=>finish(null);
+    m.onclick=(e)=>{ if(e.target===m) finish(null); };
+    m.querySelector("#rdOk").onclick=()=>{
+      const v=document.getElementById("rdDate").value;
+      if(!v){ document.getElementById("rdMsg").innerHTML="<div class='notice err'>Resolved date is required.</div>"; return; }
+      finish(v);
+    };
+  });
 }
 
 /* ============================================================
@@ -598,6 +700,13 @@ async function reloadServices(){ S.services = await sbGet("services?select=*&ord
 async function reloadCategories(){ S.categories = await sbGet("categories?select=*&order=id"); }
 function fmtDate(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); if(p.length!==3) return d;
   const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return p[2]+"-"+(m[parseInt(p[1],10)-1]||p[1])+"-"+p[0]; }
+function dfield(id,value){ const v=value?String(value).slice(0,10):"";
+  return '<div class="df"><input type="text" class="df-txt" readonly placeholder="dd-mmm-yyyy" value="'+(v?esc(fmtDate(v)):"")+'">'
+    +'<input type="date" id="'+id+'" class="df-date" value="'+esc(v)+'"></div>'; }
+function wireDF(root){ (root||document).querySelectorAll('.df .df-date').forEach(function(d){ if(d.dataset.w) return; d.dataset.w="1";
+  var txt=d.parentElement.querySelector('.df-txt'); var sync=function(){ txt.value=d.value?fmtDate(d.value):""; };
+  d.addEventListener('change',sync); var open=function(){ try{ d.showPicker(); }catch(e){} };
+  d.addEventListener('click',open); txt.addEventListener('click',open); sync(); }); }
 function askConfirm(msg){ return new Promise(res=>{ try{ if(tg && tg.showConfirm){ tg.showConfirm(msg, ok=>res(!!ok)); return; } }catch(e){} res(window.confirm(msg)); }); }
 async function renderSummary(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
