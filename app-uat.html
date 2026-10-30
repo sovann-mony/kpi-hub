@@ -512,17 +512,20 @@ async function saveEntry(){
 /* ============================================================
    MY ENTRIES
    ============================================================ */
-async function renderMine(){
+async function renderMine(mk){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
-    const mk=monthKey(new Date());
-    const parts=mk.split("-"); const y=+parts[0], m=+parts[1];
-    const from=`${mk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
-    const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&select=*,support_types(name)&order=created_at.desc&limit=300");
-    const myPts=rows.filter(r=>r.start_date && r.start_date>=from && r.start_date<to).reduce((a,e)=>a+(e.points||0),0);
-    const cal=(await sbGet(`month_calendar?select=working_days&month=eq.${mk}`))[0];
+    const curMk = mk || monthKey(new Date());
+    const parts=curMk.split("-"); const y=+parts[0], m=+parts[1];
+    const from=`${curMk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
+    const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&start_date=gte."+from+"&start_date=lt."+to+"&select=*,support_types(name)&order=start_date.desc,created_at.desc&limit=500");
+    const myPts=rows.reduce((a,e)=>a+(e.points||0),0);
+    const cal=(await sbGet(`month_calendar?select=working_days&month=eq.${curMk}`))[0];
+    const lv=(await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk+"&select=days"))[0];
+    const leaveDays=lv?(Number(lv.days)||0):0;
     const daily=parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
-    const target=cal?daily*cal.working_days:null;
+    const effDays=cal?Math.max(0,cal.working_days-leaveDays):null;
+    const target=effDays!=null?daily*effDays:null;
     const mLabel=new Date(y,m-1,1).toLocaleString('en',{month:'short',year:'numeric'});
     const max = target? Math.max(target,myPts)*1.1 : Math.max(myPts,1);
     const pct = target? Math.min(100,Math.round(myPts/max*100)) : (myPts>0?100:0);
@@ -535,10 +538,14 @@ async function renderMine(){
     }
     app.innerHTML="";
     // --- My performance ---
+    const leaveLbl = leaveDays>0?(" · "+leaveDays+" leave day"+(leaveDays>1?"s":"")):"";
     app.appendChild(el(`<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <h2 class="sec">📈 My performance</h2>
-        <span class="muted">${mLabel}${target!=null?(" · target "+target+" pts"):" · month not set in Admin"}</span>
+        <div class="row" style="align-items:center;gap:8px;margin:0">
+          <input type="month" id="mineMonth" value="${curMk}" style="max-width:160px">
+          <span class="muted">${target!=null?("target "+target+" pts"):"month not set in Admin"}${leaveLbl}</span>
+        </div>
       </div>
       <div class="perfrow">
         <div class="barlbl">${esc(AUTH.user.name||AUTH.user.username)}</div>
@@ -546,19 +553,40 @@ async function renderMine(){
         <div class="barval">${myPts}</div>
         ${flagHtml}
       </div>
+      <div class="row" style="align-items:flex-end;gap:10px;margin-top:12px">
+        <div><label>My leave (days) — ${esc(mLabel)}</label><input type="number" id="mineLeave" min="0" step="0.5" value="${leaveDays}" style="max-width:130px"></div>
+        <button class="btn sec" id="mineLeaveSave" style="width:auto">Save leave</button>
+        <span class="muted" id="mineLeaveMsg"></span>
+      </div>
+      <p class="muted" style="margin:8px 0 0">Target = ${daily} pts × (working days − leave days). Each leave day lowers your monthly target by ${daily} pts.</p>
     </div>`));
+    // wire month filter + leave save (before any early return so they always work)
+    const mSel=document.getElementById("mineMonth");
+    if(mSel) mSel.onchange=()=>renderMine(mSel.value);
+    const lvSave=document.getElementById("mineLeaveSave");
+    if(lvSave) lvSave.onclick=async()=>{
+      const d=Math.max(0,Number(document.getElementById("mineLeave").value)||0);
+      const lmsg=document.getElementById("mineLeaveMsg");
+      lvSave.disabled=true; lvSave.textContent="Saving…";
+      try{
+        const ex=await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk+"&select=id");
+        if(ex.length) await sbPatch("leaves","staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk,{days:d});
+        else await sbInsert("leaves",{staff_user_id:AUTH.user.id,month:curMk,days:d});
+        renderMine(curMk);
+      }catch(e){ lmsg.textContent="Error: "+e.message; lvSave.disabled=false; lvSave.textContent="Save leave"; }
+    };
     // --- My entries (single rows) ---
     const listCard=el(`<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-        <h2 class="sec">📋 My recent entries</h2>
-        <span class="muted">${rows.length} total · change status anytime</span>
+        <h2 class="sec">📋 My entries — ${esc(mLabel)}</h2>
+        <span class="muted">${rows.length} in ${esc(mLabel)} · change status anytime</span>
       </div>
       <div style="overflow-x:auto;margin-top:8px"><table class="etable">
         <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th class="nowrap">Resolved</th><th>Status</th><th></th></tr></thead>
         <tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
-    if(!rows.length){ list.innerHTML="<tr><td colspan='8' class='center'>No entries yet. Log your first task!</td></tr>"; return; }
+    if(!rows.length){ list.innerHTML="<tr><td colspan='8' class='center'>No entries for "+esc(mLabel)+".</td></tr>"; return; }
     let rowsHtml="";
     rows.forEach(r=>{
       const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
