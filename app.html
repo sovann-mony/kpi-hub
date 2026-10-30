@@ -530,10 +530,11 @@ async function saveEntry(){
 /* ============================================================
    MY ENTRIES
    ============================================================ */
-async function renderMine(mk){
-  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+async function renderMine(mk, silent){
+  const curMk = mk || S._mineMonth || monthKey(new Date());
+  S._mineMonth = curMk;
+  if(!silent) app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
-    const curMk = mk || monthKey(new Date());
     const parts=curMk.split("-"); const y=+parts[0], m=+parts[1];
     const from=`${curMk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
     const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&start_date=gte."+from+"&start_date=lt."+to+"&select=*,support_types(name)&order=start_date.desc,created_at.desc&limit=500");
@@ -580,7 +581,7 @@ async function renderMine(mk){
     </div>`));
     // wire month filter + leave save (before any early return so they always work)
     const mSel=document.getElementById("mineMonth");
-    if(mSel) mSel.onchange=()=>renderMine(mSel.value);
+    if(mSel) mSel.onchange=()=>renderMine(mSel.value, true);
     const lvSave=document.getElementById("mineLeaveSave");
     if(lvSave) lvSave.onclick=async()=>{
       const d=Math.max(0,Number(document.getElementById("mineLeave").value)||0);
@@ -590,7 +591,7 @@ async function renderMine(mk){
         const ex=await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk+"&select=id");
         if(ex.length) await sbPatch("leaves","staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk,{days:d});
         else await sbInsert("leaves",{staff_user_id:AUTH.user.id,month:curMk,days:d});
-        renderMine(curMk);
+        renderMine(curMk, true);
       }catch(e){ lmsg.textContent="Error: "+e.message; lvSave.disabled=false; lvSave.textContent="Save leave"; }
     };
     // --- My entries (single rows) ---
@@ -633,7 +634,7 @@ async function renderMine(mk){
           const def=(r.resolved_date? String(r.resolved_date).slice(0,10) : new Date().toISOString().slice(0,10));
           const rd=await askResolvedDate(def);
           if(!rd){ sel.value=r.status; return; }   // cancelled → keep previous status
-          try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd}); r.status="Done"; r.resolved_date=rd; renderMine(); }
+          try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd}); r.status="Done"; r.resolved_date=rd; renderMine(curMk, true); }
           catch(e){ alert("Error: "+e.message); sel.value=r.status; }
           return;
         }
@@ -646,7 +647,7 @@ async function renderMine(mk){
       const id=parseInt(btn.getAttribute("data-del"),10);
       btn.onclick=async()=>{
         if(!(await askConfirm("Remove this entry? It will be permanently deleted."))) return;
-        try{ const x=await fetch(REST+"entries?id=eq."+id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); renderMine(); }
+        try{ const x=await fetch(REST+"entries?id=eq."+id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); renderMine(curMk, true); }
         catch(e){ alert("Error: "+e.message); }
       };
     });
@@ -702,7 +703,7 @@ function editEntry(r){
       remark: document.getElementById("ed_remark").value.trim()||null
     };
     const b=document.getElementById("edSave"); b.disabled=true; b.textContent="Saving…";
-    try{ await sbPatch("entries","id=eq."+r.id,body); close(); renderMine(); }
+    try{ await sbPatch("entries","id=eq."+r.id,body); close(); renderMine(null, true); }
     catch(e){ document.getElementById("edMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save changes"; }
   };
 }
@@ -900,7 +901,7 @@ const ADMIN_TABS=[
   {k:"cats",t:"Categories",ic:"🗂️"},
   {k:"support",t:"Support Type",ic:"⭐"}
 ];
-async function renderAdmin(){
+async function renderAdmin(silent){
   if(!AUTH.pass){ renderAdminUnlock(); return; }
   if(!S.adminTab) S.adminTab="units";
   app.innerHTML="";
@@ -909,7 +910,7 @@ async function renderAdmin(){
   app.appendChild(head);
   const body=el(`<div id="adBody"></div>`); app.appendChild(body);
   head.querySelectorAll("#adTabs button").forEach(b=>b.onclick=()=>{ S.adminTab=b.dataset.at; renderAdmin(); });
-  body.innerHTML="<div class='center'><span class='spin'></span></div>";
+  if(!silent) body.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
     body.innerHTML="";
     if(S.adminTab==="units") await adUnits(body);
@@ -992,9 +993,9 @@ async function adUsers(host){
       };
       const tbtn=row.querySelector("[data-term]");
       if(tbtn) tbtn.onclick=async()=>{ if(!(await askConfirm('Terminate "'+(u.name||u.username)+'"? They can no longer log in. Their records are kept and you can reactivate later.'))) return;
-        try{ await saveU({p_active:false}); await reloadTeams(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+        try{ await saveU({p_active:false}); await reloadTeams(); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
       const rbtn=row.querySelector("[data-react]");
-      if(rbtn) rbtn.onclick=async()=>{ try{ await saveU({p_active:true}); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      if(rbtn) rbtn.onclick=async()=>{ try{ await saveU({p_active:true}); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
       uList.appendChild(row);
     });
 }
@@ -1024,7 +1025,7 @@ async function adSupport(host){
       };
       row.querySelector("[data-delp]").onclick=async()=>{
         if(!(await askConfirm('Remove support type "'+s.name+'"?'))) return;
-        try{ await sbPatch("support_types","id=eq."+s.id,{active:false}); await reloadSupports(); renderAdmin(); }
+        try{ await sbPatch("support_types","id=eq."+s.id,{active:false}); await reloadSupports(); renderAdmin(true); }
         catch(e){ alert("Error: "+e.message); }
       };
       sList.appendChild(row);
@@ -1033,7 +1034,7 @@ async function adSupport(host){
       const name=document.getElementById("stName").value.trim();
       const pts=parseInt(document.getElementById("stPts").value,10)||0;
       if(!name) return;
-      try{ await sbInsert("support_types",{name:name,points:pts,active:true}); await reloadSupports(); renderAdmin(); }
+      try{ await sbInsert("support_types",{name:name,points:pts,active:true}); await reloadSupports(); renderAdmin(true); }
       catch(e){ alert("Error: "+e.message); }
     };
 }
@@ -1049,11 +1050,11 @@ async function adServices(host){
       const r=el(`<div class="row" style="margin:6px 0;align-items:center"><div style="flex:3">${esc(s.name)}</div>
         <div style="flex:0 0 auto"><button class="btn danger sm" data-dels="${s.id}">Remove</button></div></div>`);
       r.querySelector("[data-dels]").onclick=async()=>{ if(!(await askConfirm('Remove service "'+s.name+'"?'))) return;
-        try{ const x=await fetch(REST+"services?id=eq."+s.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadServices(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+        try{ const x=await fetch(REST+"services?id=eq."+s.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadServices(); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
       svcList.appendChild(r);
     });
     document.getElementById("svcAdd").onclick=async()=>{ const v=document.getElementById("svcNew").value.trim(); if(!v) return;
-      try{ await sbInsert("services",{name:v}); await reloadServices(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      try{ await sbInsert("services",{name:v}); await reloadServices(); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
 }
 async function adCategories(host){
     const catCard=el(`<div class="card"><h2 class="sec">🗂️ Categories</h2><div id="catList"></div>
@@ -1067,11 +1068,11 @@ async function adCategories(host){
       const r=el(`<div class="row" style="margin:6px 0;align-items:center"><div style="flex:3">${esc(c.name)}</div>
         <div style="flex:0 0 auto"><button class="btn danger sm" data-delc="${c.id}">Remove</button></div></div>`);
       r.querySelector("[data-delc]").onclick=async()=>{ if(!(await askConfirm('Remove category "'+c.name+'"?'))) return;
-        try{ const x=await fetch(REST+"categories?id=eq."+c.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadCategories(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+        try{ const x=await fetch(REST+"categories?id=eq."+c.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadCategories(); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
       catList.appendChild(r);
     });
     document.getElementById("catAdd").onclick=async()=>{ const v=document.getElementById("catNew").value.trim(); if(!v) return;
-      try{ await sbInsert("categories",{name:v}); await reloadCategories(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      try{ await sbInsert("categories",{name:v}); await reloadCategories(); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
 }
 async function adTarget(host){
     const mkNow=monthKey(new Date());
@@ -1139,7 +1140,7 @@ async function adUnits(host){
       };
       row.querySelector("[data-delt]").onclick=async()=>{
         if(!(await askConfirm('Remove unit "'+t.name+'"? Existing records stay, but the unit is hidden.'))) return;
-        try{ await sbPatch("teams","id=eq."+t.id,{active:false}); await reloadTeams(); renderAdmin(); }
+        try{ await sbPatch("teams","id=eq."+t.id,{active:false}); await reloadTeams(); renderAdmin(true); }
         catch(e){ alert("Error: "+e.message); }
       };
       tList.appendChild(row);
@@ -1147,7 +1148,7 @@ async function adUnits(host){
     document.getElementById("tAdd").onclick=async()=>{
       const v=document.getElementById("tNew").value.trim(); if(!v) return;
       const color=PALETTE[S.teams.length % PALETTE.length];
-      try{ await sbInsert("teams",{name:v,color:color,active:true}); await reloadTeams(); renderAdmin(); }
+      try{ await sbInsert("teams",{name:v,color:color,active:true}); await reloadTeams(); renderAdmin(true); }
       catch(e){ alert("Error: "+e.message); }
     };
 }
