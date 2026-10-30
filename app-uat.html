@@ -444,7 +444,7 @@ function show(tab){
    ============================================================ */
 function renderLog(){
   const today = new Date().toISOString().slice(0,10);
-  const stOpts = S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
+  const stOpts = '<option value="">—</option>' + S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
   const svcOpts = '<option value="">—</option>' + S.services.map(s=>`<option>${esc(s.name)}</option>`).join("");
   const catOpts = '<option value="">—</option>' + S.categories.map(c=>`<option>${esc(c.name)}</option>`).join("");
   app.innerHTML="";
@@ -455,7 +455,7 @@ function renderLog(){
     <div class="grid2">
       <div><label>Start date</label>${dfield("f_start",today)}</div>
       <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
-      <div><label>Contact</label><input id="f_contact" placeholder="name / phone"></div>
+      <div><label>Contact</label><input id="f_contact" placeholder="Phone Number / Email"></div>
       <div><label>Service</label><select id="f_service">${svcOpts}</select></div>
       <div><label>Category</label><select id="f_category">${catOpts}</select></div>
       <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label><select id="f_support">${stOpts}</select></div>
@@ -470,7 +470,7 @@ function renderLog(){
   app.appendChild(c);
   wireDF(c);
   const sel=document.getElementById("f_support"), hint=document.getElementById("ptsHint");
-  const updPts=()=>{const o=sel.selectedOptions[0];hint.textContent=o?("= "+o.dataset.pts+" points"):"";};
+  const updPts=()=>{const o=sel.selectedOptions[0];hint.textContent=(o&&o.dataset.pts)?("= "+o.dataset.pts+" points"):"";};
   sel.onchange=updPts; updPts();
   document.getElementById("saveEntry").onclick=saveEntry;
 }
@@ -479,6 +479,7 @@ async function saveEntry(){
   const merchant=document.getElementById("f_merchant").value.trim();
   if(!merchant){ msg.innerHTML="<div class='notice err'>Please enter a merchant name.</div>"; return; }
   const supId=parseInt(document.getElementById("f_support").value,10);
+  if(!supId){ msg.innerHTML="<div class='notice err'>Please choose a support type.</div>"; return; }
   const sup=S.supports.find(s=>s.id===supId);
   const btn=document.getElementById("saveEntry"); btn.disabled=true; btn.textContent="Saving…";
   try{
