@@ -291,7 +291,7 @@ applyTheme(currentTheme());
 
 /* ---- state ---- */
 const AUTH = { user:null, pass:null };               // pass kept in memory only
-const S = { teams:[], supports:[], settings:{}, tab:"log", _month:null };
+const S = { teams:[], supports:[], services:[], categories:[], settings:{}, tab:"log", _month:null };
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 const el = (h)=>{const d=document.createElement("div");d.innerHTML=h;return d.firstElementChild;};
@@ -315,6 +315,8 @@ async function boot(){
   try{
     S.teams    = await sbGet("teams?select=*&active=eq.true&order=id");
     S.supports = await sbGet("support_types?select=*&active=eq.true&order=points.desc");
+    S.services = await sbGet("services?select=*&order=id");
+    S.categories = await sbGet("categories?select=*&order=id");
     const st   = await sbGet("settings?select=*");
     st.forEach(r=>S.settings[r.key]=r.value);
   }catch(e){
@@ -407,6 +409,8 @@ function show(tab){
 function renderLog(){
   const today = new Date().toISOString().slice(0,10);
   const stOpts = S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
+  const svcOpts = '<option value="">—</option>' + S.services.map(s=>`<option>${esc(s.name)}</option>`).join("");
+  const catOpts = '<option value="">—</option>' + S.categories.map(c=>`<option>${esc(c.name)}</option>`).join("");
   app.innerHTML="";
   const noTeam = !AUTH.user.team_id;
   const c = el(`<div class="card">
@@ -416,8 +420,8 @@ function renderLog(){
       <div><label>Start date</label><input type="date" id="f_start" value="${today}"></div>
       <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
       <div><label>Contact</label><input id="f_contact" placeholder="name / phone"></div>
-      <div><label>Service</label><input id="f_service" placeholder="service"></div>
-      <div><label>Category</label><input id="f_category" placeholder="category"></div>
+      <div><label>Service</label><select id="f_service">${svcOpts}</select></div>
+      <div><label>Category</label><select id="f_category">${catOpts}</select></div>
       <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label><select id="f_support">${stOpts}</select></div>
       <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
       <div><label>Resolved date</label><input type="date" id="f_resolved"></div>
@@ -486,7 +490,7 @@ async function renderMine(){
             <div class="muted">${esc(sup)} · <span class="pts">${r.points||0} pts</span></div></div>
           <span class="tag ${stc}">${esc(r.status)}</span>
         </div>
-        <div class="muted" style="margin-top:6px">Start: ${esc(r.start_date||"—")}${r.resolved_date?(" · Resolved: "+esc(r.resolved_date)):""}</div>
+        <div class="muted" style="margin-top:6px">Start: ${esc(fmtDate(r.start_date))}${r.resolved_date?(" · Resolved: "+esc(fmtDate(r.resolved_date))):""}</div>
         ${r.remark?("<div style='margin-top:6px'>"+esc(r.remark)+"</div>"):""}
         <div style="margin-top:8px"><button class="btn sec sm" data-id="${r.id}">Change status</button></div>
       </div>`);
@@ -512,6 +516,10 @@ function weekendsInMonth(mk){ const p=mk.split("-").map(Number); const dim=new D
 const PALETTE=["#2563eb","#16a34a","#db2777","#d97706","#7c3aed","#0891b2","#dc2626","#0d9488","#c026d3","#ca8a04"];
 async function reloadTeams(){ S.teams = await sbGet("teams?select=*&active=eq.true&order=id"); }
 async function reloadSupports(){ S.supports = await sbGet("support_types?select=*&active=eq.true&order=points.desc"); }
+async function reloadServices(){ S.services = await sbGet("services?select=*&order=id"); }
+async function reloadCategories(){ S.categories = await sbGet("categories?select=*&order=id"); }
+function fmtDate(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); if(p.length!==3) return d;
+  const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return p[2]+"-"+(m[parseInt(p[1],10)-1]||p[1])+"-"+p[0]; }
 function askConfirm(msg){ return new Promise(res=>{ try{ if(tg && tg.showConfirm){ tg.showConfirm(msg, ok=>res(!!ok)); return; } }catch(e){} res(window.confirm(msg)); }); }
 async function renderSummary(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
@@ -773,6 +781,42 @@ async function renderAdmin(){
       try{ await sbInsert("support_types",{name:name,points:pts,active:true}); await reloadSupports(); renderAdmin(); }
       catch(e){ alert("Error: "+e.message); }
     };
+
+    // --- Services (add / remove) ---
+    const svcCard=el(`<div class="card"><h2 class="sec">🛠️ Services</h2><div id="svcList"></div>
+      <div class="row" style="align-items:flex-end;margin-top:12px">
+        <div style="flex:3"><label>New service</label><input id="svcNew" placeholder="e.g. Static QR"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="svcAdd">Add</button></div>
+      </div></div>`);
+    app.appendChild(svcCard);
+    const svcList=svcCard.querySelector("#svcList");
+    S.services.forEach(s=>{
+      const r=el(`<div class="row" style="margin:6px 0;align-items:center"><div style="flex:3">${esc(s.name)}</div>
+        <div style="flex:0 0 auto"><button class="btn danger sm" data-dels="${s.id}">Remove</button></div></div>`);
+      r.querySelector("[data-dels]").onclick=async()=>{ if(!(await askConfirm('Remove service "'+s.name+'"?'))) return;
+        try{ const x=await fetch(REST+"services?id=eq."+s.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadServices(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      svcList.appendChild(r);
+    });
+    document.getElementById("svcAdd").onclick=async()=>{ const v=document.getElementById("svcNew").value.trim(); if(!v) return;
+      try{ await sbInsert("services",{name:v}); await reloadServices(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+
+    // --- Categories (add / remove) ---
+    const catCard=el(`<div class="card"><h2 class="sec">🗂️ Categories</h2><div id="catList"></div>
+      <div class="row" style="align-items:flex-end;margin-top:12px">
+        <div style="flex:3"><label>New category</label><input id="catNew" placeholder="e.g. Request"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="catAdd">Add</button></div>
+      </div></div>`);
+    app.appendChild(catCard);
+    const catList=catCard.querySelector("#catList");
+    S.categories.forEach(c=>{
+      const r=el(`<div class="row" style="margin:6px 0;align-items:center"><div style="flex:3">${esc(c.name)}</div>
+        <div style="flex:0 0 auto"><button class="btn danger sm" data-delc="${c.id}">Remove</button></div></div>`);
+      r.querySelector("[data-delc]").onclick=async()=>{ if(!(await askConfirm('Remove category "'+c.name+'"?'))) return;
+        try{ const x=await fetch(REST+"categories?id=eq."+c.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadCategories(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      catList.appendChild(r);
+    });
+    document.getElementById("catAdd").onclick=async()=>{ const v=document.getElementById("catNew").value.trim(); if(!v) return;
+      try{ await sbInsert("categories",{name:v}); await reloadCategories(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
 
     // --- Month setup (any month, auto working days) ---
     const mkNow=monthKey(new Date());
