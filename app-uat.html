@@ -573,10 +573,17 @@ async function renderMine(){
     list.querySelectorAll("select[data-id]").forEach(sel=>{
       const r=byId[parseInt(sel.getAttribute("data-id"),10)];
       sel.onchange=async()=>{
-        const next=sel.value; const body={status:next};
-        if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
-        try{ await sbPatch("entries","id=eq."+r.id,body); r.status=next; if(body.resolved_date) r.resolved_date=body.resolved_date;
-          sel.className="statsel "+(next==="Done"?"done":(next==="In Progress"?"progress":"pending"));
+        const next=sel.value;
+        if(next==="Done"){
+          const def=(r.resolved_date? String(r.resolved_date).slice(0,10) : new Date().toISOString().slice(0,10));
+          const rd=await askResolvedDate(def);
+          if(!rd){ sel.value=r.status; return; }   // cancelled → keep previous status
+          try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd}); r.status="Done"; r.resolved_date=rd; renderMine(); }
+          catch(e){ alert("Error: "+e.message); sel.value=r.status; }
+          return;
+        }
+        try{ await sbPatch("entries","id=eq."+r.id,{status:next}); r.status=next;
+          sel.className="statsel "+(next==="In Progress"?"progress":"pending");
         }catch(e){ alert("Error: "+e.message); sel.value=r.status; }
       };
     });
@@ -642,6 +649,31 @@ function editEntry(r){
     try{ await sbPatch("entries","id=eq."+r.id,body); close(); renderMine(); }
     catch(e){ document.getElementById("edMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save changes"; }
   };
+}
+
+function askResolvedDate(defDate){
+  return new Promise(resolve=>{
+    const m=el(`<div class="modal"><div class="box" style="max-width:360px">
+      <h2 class="sec">✅ Mark as Done</h2>
+      <p class="muted" style="margin:4px 0 12px">Please set the Resolved date to complete this task.</p>
+      <label>Resolved date</label>
+      <input type="date" id="rdDate" value="${esc(defDate||"")}">
+      <div id="rdMsg"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn sec" id="rdCancel">Cancel</button>
+        <button class="btn" id="rdOk">Complete</button>
+      </div>
+    </div></div>`);
+    document.body.appendChild(m);
+    const finish=(val)=>{ m.remove(); resolve(val); };
+    m.querySelector("#rdCancel").onclick=()=>finish(null);
+    m.onclick=(e)=>{ if(e.target===m) finish(null); };
+    m.querySelector("#rdOk").onclick=()=>{
+      const v=document.getElementById("rdDate").value;
+      if(!v){ document.getElementById("rdMsg").innerHTML="<div class='notice err'>Resolved date is required.</div>"; return; }
+      finish(v);
+    };
+  });
 }
 
 /* ============================================================
