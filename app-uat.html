@@ -881,7 +881,7 @@ async function renderDashboard(){
    ADMIN  (needs admin password in memory for staff changes)
    ============================================================ */
 const ADMIN_TABS=[
-  {k:"units",t:"Units",ic:"🏢"},
+  {k:"units",t:"Units & Teams",ic:"🏢"},
   {k:"users",t:"User & Role",ic:"👤"},
   {k:"target",t:"KPI Target",ic:"🎯"},
   {k:"services",t:"Services",ic:"🛠️"},
@@ -1104,7 +1104,7 @@ async function adTarget(host){
     };
 }
 async function adUnits(host){
-    const tc=el(`<div class="card"><h2 class="sec">🏢 Units</h2>
+    const tc=el(`<div class="card"><h2 class="sec">🏢 Units & Teams</h2>
       <div id="tList"></div>
       <div class="row" style="align-items:flex-end;margin-top:12px">
         <div style="flex:3"><label>New unit name</label><input id="tNew" placeholder="e.g. Risk Unit"></div>
