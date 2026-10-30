@@ -211,6 +211,26 @@
     .uact{grid-column:1 / -1;justify-content:flex-start}
     .urow.uhead{display:none}
   }
+
+  /* ===== My Entries single rows + status dropdown ===== */
+  .erow{display:grid;grid-template-columns:1.8fr 1fr auto;gap:12px;align-items:center;padding:11px 6px;border-bottom:1px solid var(--border)}
+  .erow:last-child{border-bottom:none}
+  .erow .emer{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+  .erow .emer .muted{font-weight:500}
+  .erow .edate{font-size:12px}
+  .estat{justify-self:end}
+  .statsel{width:auto;min-width:98px;border-radius:999px;border:1.5px solid var(--border);padding:7px 10px;font-weight:700;font-size:13px;cursor:pointer}
+  .statsel.done{background:#dcfce7;color:#166534;border-color:#bbf7d0}
+  .statsel.pending{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+  .statsel.progress{background:#fef3c7;color:#92400e;border-color:#fde68a}
+  @media (max-width:579px){ .erow{grid-template-columns:1fr auto} .erow .edate{display:none} }
+
+  /* ===== My performance bar ===== */
+  .perfrow{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+  .perfrow .barlbl{width:120px;flex:0 0 auto;color:var(--accent);font-weight:700}
+  .perfrow .bartrack{overflow:visible;height:12px;position:relative}
+  .perfrow .barval{min-width:46px;text-align:right;font-weight:800;font-size:15px}
+  .bar-target{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:2px;z-index:1}
 </style>
 </head>
 <body>
@@ -475,27 +495,70 @@ async function saveEntry(){
 async function renderMine(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
-    const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&select=*,support_types(name)&order=created_at.desc&limit=200");
-    const total=rows.reduce((a,r)=>a+(r.points||0),0);
+    const mk=monthKey(new Date());
+    const parts=mk.split("-"); const y=+parts[0], m=+parts[1];
+    const from=`${mk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
+    const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&select=*,support_types(name)&order=created_at.desc&limit=300");
+    const myPts=rows.filter(r=>r.start_date && r.start_date>=from && r.start_date<to).reduce((a,e)=>a+(e.points||0),0);
+    const cal=(await sbGet(`month_calendar?select=working_days&month=eq.${mk}`))[0];
+    const daily=parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
+    const target=cal?daily*cal.working_days:null;
+    const mLabel=new Date(y,m-1,1).toLocaleString('en',{month:'short',year:'numeric'});
+    const max = target? Math.max(target,myPts)*1.1 : Math.max(myPts,1);
+    const pct = target? Math.min(100,Math.round(myPts/max*100)) : (myPts>0?100:0);
+    const tpos = target? Math.round(target/max*100) : 0;
+    let flagHtml="", fillColor="var(--accent)";
+    if(target!=null){
+      if(myPts<target){ flagHtml='<span class="flag below">Below</span>'; fillColor="var(--bad)"; }
+      else if(myPts<=target*1.15){ flagHtml='<span class="flag track">On track</span>'; fillColor="var(--ok)"; }
+      else { flagHtml='<span class="flag over">Over</span>'; fillColor="var(--warn)"; }
+    }
     app.innerHTML="";
-    app.appendChild(el(`<div class="card"><h2 class="sec">📋 My entries</h2>
-      <p class="muted">${rows.length} tasks · <span class="pts">${total} points</span> total</p></div>`));
-    if(!rows.length){ app.appendChild(el("<div class='center'>No entries yet. Log your first task!</div>")); return; }
+    // --- My performance ---
+    app.appendChild(el(`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <h2 class="sec">📈 My performance</h2>
+        <span class="muted">${mLabel}${target!=null?(" · target "+target+" pts"):" · month not set in Admin"}</span>
+      </div>
+      <div class="perfrow">
+        <div class="barlbl">${esc(AUTH.user.name||AUTH.user.username)}</div>
+        <div class="bartrack">${target!=null?`<div class="bar-target" style="left:${tpos}%"></div>`:""}<div class="barfill" style="width:${pct}%;background:${fillColor}"></div></div>
+        <div class="barval">${myPts}</div>
+        ${flagHtml}
+      </div>
+    </div>`));
+    // --- My entries (single rows) ---
+    const total=rows.reduce((a,r)=>a+(r.points||0),0);
+    const listCard=el(`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 class="sec">📋 My entries</h2>
+        <span class="muted">${rows.length} tasks · <span class="pts">${total} pts</span></span>
+      </div>
+      <div id="eList" style="margin-top:8px"></div></div>`);
+    app.appendChild(listCard);
+    const list=listCard.querySelector("#eList");
+    if(!rows.length){ list.innerHTML="<div class='center'>No entries yet. Log your first task!</div>"; return; }
     rows.forEach(r=>{
       const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
       const sup = r.support_types?r.support_types.name:"";
-      const card=el(`<div class="entry">
-        <div class="top">
-          <div><div class="merchant">${esc(r.merchant_name||"(no name)")}</div>
-            <div class="muted">${esc(sup)} · <span class="pts">${r.points||0} pts</span></div></div>
-          <span class="tag ${stc}">${esc(r.status)}</span>
-        </div>
-        <div class="muted" style="margin-top:6px">Start: ${esc(fmtDate(r.start_date))}${r.resolved_date?(" · Resolved: "+esc(fmtDate(r.resolved_date))):""}</div>
-        ${r.remark?("<div style='margin-top:6px'>"+esc(r.remark)+"</div>"):""}
-        <div style="margin-top:8px"><button class="btn sec sm" data-id="${r.id}">Change status</button></div>
+      const row=el(`<div class="erow">
+        <div class="emer">${esc(r.merchant_name||"(no name)")}<div class="muted">${esc(sup)} · <span class="pts">${r.points||0} pts</span></div></div>
+        <div class="muted edate">${esc(fmtDate(r.start_date))}</div>
+        <div class="estat"><select class="statsel ${stc}">
+          <option${r.status==="Pending"?" selected":""}>Pending</option>
+          <option${r.status==="In Progress"?" selected":""}>In Progress</option>
+          <option${r.status==="Done"?" selected":""}>Done</option>
+        </select></div>
       </div>`);
-      card.querySelector("button").onclick=()=>changeStatus(r);
-      app.appendChild(card);
+      const sel=row.querySelector("select");
+      sel.onchange=async()=>{
+        const next=sel.value; const body={status:next};
+        if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
+        try{ await sbPatch("entries","id=eq."+r.id,body); r.status=next; if(body.resolved_date) r.resolved_date=body.resolved_date;
+          sel.className="statsel "+(next==="Done"?"done":(next==="In Progress"?"progress":"pending"));
+        }catch(e){ alert("Error: "+e.message); sel.value=r.status; }
+      };
+      list.appendChild(row);
     });
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
