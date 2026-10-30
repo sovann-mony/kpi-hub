@@ -231,6 +231,14 @@
   .perfrow .bartrack{overflow:visible;height:12px;position:relative}
   .perfrow .barval{min-width:46px;text-align:right;font-weight:800;font-size:15px}
   .bar-target{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:2px;z-index:1}
+
+  /* ===== My Entries full table ===== */
+  .etable{min-width:780px}
+  .etable th,.etable td{padding:12px 10px;vertical-align:middle}
+  .etable td.rem{color:var(--muted);max-width:240px}
+  .etable .nowrap{white-space:nowrap}
+  .etable tbody tr:hover{background:rgba(99,102,241,.05)}
+  .etable td .statsel{min-width:96px}
 </style>
 </head>
 <body>
@@ -528,29 +536,37 @@ async function renderMine(){
       </div>
     </div>`));
     // --- My entries (single rows) ---
-    const total=rows.reduce((a,r)=>a+(r.points||0),0);
     const listCard=el(`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h2 class="sec">📋 My entries</h2>
-        <span class="muted">${rows.length} tasks · <span class="pts">${total} pts</span></span>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <h2 class="sec">📋 My recent entries</h2>
+        <span class="muted">${rows.length} total · change status anytime</span>
       </div>
-      <div id="eList" style="margin-top:8px"></div></div>`);
+      <div style="overflow-x:auto;margin-top:8px"><table class="etable">
+        <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th>Status</th></tr></thead>
+        <tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
-    if(!rows.length){ list.innerHTML="<div class='center'>No entries yet. Log your first task!</div>"; return; }
+    if(!rows.length){ list.innerHTML="<tr><td colspan='6' class='center'>No entries yet. Log your first task!</td></tr>"; return; }
+    let rowsHtml="";
     rows.forEach(r=>{
       const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
       const sup = r.support_types?r.support_types.name:"";
-      const row=el(`<div class="erow">
-        <div class="emer">${esc(r.merchant_name||"(no name)")}<div class="muted">${esc(sup)} · <span class="pts">${r.points||0} pts</span></div></div>
-        <div class="muted edate">${esc(fmtDate(r.start_date))}</div>
-        <div class="estat"><select class="statsel ${stc}">
-          <option${r.status==="Pending"?" selected":""}>Pending</option>
-          <option${r.status==="In Progress"?" selected":""}>In Progress</option>
-          <option${r.status==="Done"?" selected":""}>Done</option>
-        </select></div>
-      </div>`);
-      const sel=row.querySelector("select");
+      rowsHtml += `<tr>`
+        + `<td class="nowrap">${esc(fmtDate(r.start_date))}</td>`
+        + `<td><b>${esc(r.merchant_name||"—")}</b></td>`
+        + `<td>${esc(r.contact||"N/A")}</td>`
+        + `<td>${esc(sup||"—")}</td>`
+        + `<td class="rem">${esc(r.remark||"—")}</td>`
+        + `<td><select class="statsel ${stc}" data-id="${r.id}">`
+          + `<option${r.status==="Pending"?" selected":""}>Pending</option>`
+          + `<option${r.status==="In Progress"?" selected":""}>In Progress</option>`
+          + `<option${r.status==="Done"?" selected":""}>Done</option>`
+        + `</select></td></tr>`;
+    });
+    list.innerHTML = rowsHtml;
+    const byId={}; rows.forEach(r=>byId[r.id]=r);
+    list.querySelectorAll("select[data-id]").forEach(sel=>{
+      const r=byId[parseInt(sel.getAttribute("data-id"),10)];
       sel.onchange=async()=>{
         const next=sel.value; const body={status:next};
         if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
@@ -558,7 +574,6 @@ async function renderMine(){
           sel.className="statsel "+(next==="Done"?"done":(next==="In Progress"?"progress":"pending"));
         }catch(e){ alert("Error: "+e.message); sel.value=r.status; }
       };
-      list.appendChild(row);
     });
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
