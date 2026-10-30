@@ -453,7 +453,7 @@ function renderLog(){
     <h2 class="sec">➕ Log a task</h2>
     <div id="logMsg">${noTeam?"<div class='notice err'>Your team isn't set yet. Ask your admin to assign your team.</div>":""}</div>
     <div class="grid2">
-      <div><label>Start date</label>${dfield("f_start",today)}</div>
+      <div><label>Start date</label>${dfield("f_start","")}</div>
       <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
       <div><label>Contact</label><input id="f_contact" placeholder="phone number / email"></div>
       <div><label>Service</label><select id="f_service">${svcOpts}</select></div>
@@ -476,6 +476,8 @@ function renderLog(){
 }
 async function saveEntry(){
   const msg=document.getElementById("logMsg");
+  const startDate=document.getElementById("f_start").value;
+  if(!startDate){ msg.innerHTML="<div class='notice err'>Please choose a start date.</div>"; return; }
   const merchant=document.getElementById("f_merchant").value.trim();
   if(!merchant){ msg.innerHTML="<div class='notice err'>Please enter a merchant name.</div>"; return; }
   const supId=parseInt(document.getElementById("f_support").value,10);
