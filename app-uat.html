@@ -233,7 +233,10 @@
   .bar-target{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:2px;z-index:1}
 
   /* ===== My Entries full table ===== */
-  .etable{min-width:780px}
+  .etable{min-width:920px}
+  /* ===== Edit modal ===== */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:24px 16px;overflow:auto}
+  .modal .box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;max-width:580px;width:100%;box-shadow:var(--shadow-lg)}
   .etable th,.etable td{padding:12px 10px;vertical-align:middle}
   .etable td.rem{color:var(--muted);max-width:240px}
   .etable .nowrap{white-space:nowrap}
@@ -542,11 +545,11 @@ async function renderMine(){
         <span class="muted">${rows.length} total · change status anytime</span>
       </div>
       <div style="overflow-x:auto;margin-top:8px"><table class="etable">
-        <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th class="nowrap">Resolved</th><th>Status</th><th></th></tr></thead>
         <tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
-    if(!rows.length){ list.innerHTML="<tr><td colspan='6' class='center'>No entries yet. Log your first task!</td></tr>"; return; }
+    if(!rows.length){ list.innerHTML="<tr><td colspan='8' class='center'>No entries yet. Log your first task!</td></tr>"; return; }
     let rowsHtml="";
     rows.forEach(r=>{
       const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
@@ -557,12 +560,13 @@ async function renderMine(){
         + `<td>${esc(r.contact||"N/A")}</td>`
         + `<td>${esc(sup||"—")}</td>`
         + `<td class="rem">${esc(r.remark||"—")}</td>`
+        + `<td class="nowrap">${esc(fmtDate(r.resolved_date))}</td>`
         + `<td><select class="statsel ${stc}" data-id="${r.id}">`
           + `<option${r.status==="Pending"?" selected":""}>Pending</option>`
           + `<option${r.status==="In Progress"?" selected":""}>In Progress</option>`
           + `<option${r.status==="Done"?" selected":""}>Done</option>`
         + `</select></td>`
-        + `<td><button class="iconbtn danger" data-del="${r.id}" title="Remove entry">🗑️</button></td></tr>`;
+        + `<td><div class="uact"><button class="iconbtn" data-edit="${r.id}" title="Edit entry">✏️</button><button class="iconbtn danger" data-del="${r.id}" title="Remove entry">🗑️</button></div></td></tr>`;
     });
     list.innerHTML = rowsHtml;
     const byId={}; rows.forEach(r=>byId[r.id]=r);
@@ -584,14 +588,60 @@ async function renderMine(){
         catch(e){ alert("Error: "+e.message); }
       };
     });
+    list.querySelectorAll("button[data-edit]").forEach(btn=>{
+      const r=byId[parseInt(btn.getAttribute("data-edit"),10)];
+      btn.onclick=()=>editEntry(r);
+    });
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
-async function changeStatus(r){
-  const next = r.status==="Pending"?"In Progress":(r.status==="In Progress"?"Done":"Pending");
-  const body={status:next};
-  if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
-  try{ await sbPatch("entries","id=eq."+r.id,body); renderMine(); }
-  catch(e){ alert("Error: "+e.message); }
+function editEntry(r){
+  const svcOpts='<option value="">—</option>'+S.services.map(s=>`<option${s.name===r.service?" selected":""}>${esc(s.name)}</option>`).join("");
+  const catOpts='<option value="">—</option>'+S.categories.map(c=>`<option${c.name===r.category?" selected":""}>${esc(c.name)}</option>`).join("");
+  const stOpts=S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}"${s.id===r.support_type_id?" selected":""}>${esc(s.name)} (${s.points} pts)</option>`).join("");
+  const statOpts=["Pending","In Progress","Done"].map(s=>`<option${s===r.status?" selected":""}>${s}</option>`).join("");
+  const m=el(`<div class="modal"><div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✏️ Edit entry</h2><button class="iconbtn" id="edX" title="Close">✕</button></div>
+    <div id="edMsg"></div>
+    <div class="grid2">
+      <div><label>Start date</label><input type="date" id="ed_start" value="${esc((r.start_date||"").slice(0,10))}"></div>
+      <div><label>Task / merchant</label><input id="ed_merchant" value="${esc(r.merchant_name||"")}"></div>
+      <div><label>Contact</label><input id="ed_contact" value="${esc(r.contact||"")}"></div>
+      <div><label>Service</label><select id="ed_service">${svcOpts}</select></div>
+      <div><label>Category</label><select id="ed_category">${catOpts}</select></div>
+      <div><label>Support type</label><select id="ed_support">${stOpts}</select></div>
+      <div><label>Status</label><select id="ed_status">${statOpts}</select></div>
+      <div><label>Resolved date</label><input type="date" id="ed_resolved" value="${esc((r.resolved_date||"").slice(0,10))}"></div>
+      <div class="span2"><label>Remark</label><textarea id="ed_remark">${esc(r.remark||"")}</textarea></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn sec" id="edCancel">Cancel</button>
+      <button class="btn" id="edSave">Save changes</button>
+    </div>
+  </div></div>`);
+  document.body.appendChild(m);
+  const close=()=>m.remove();
+  m.querySelector("#edX").onclick=close;
+  m.querySelector("#edCancel").onclick=close;
+  m.onclick=(e)=>{ if(e.target===m) close(); };
+  m.querySelector("#edSave").onclick=async()=>{
+    const supId=parseInt(document.getElementById("ed_support").value,10);
+    const sup=S.supports.find(s=>s.id===supId);
+    const body={
+      start_date: document.getElementById("ed_start").value||null,
+      merchant_name: document.getElementById("ed_merchant").value.trim()||null,
+      contact: document.getElementById("ed_contact").value.trim()||null,
+      service: document.getElementById("ed_service").value.trim()||null,
+      category: document.getElementById("ed_category").value.trim()||null,
+      support_type_id: supId,
+      points: sup?sup.points:0,
+      status: document.getElementById("ed_status").value,
+      resolved_date: document.getElementById("ed_resolved").value||null,
+      remark: document.getElementById("ed_remark").value.trim()||null
+    };
+    const b=document.getElementById("edSave"); b.disabled=true; b.textContent="Saving…";
+    try{ await sbPatch("entries","id=eq."+r.id,body); close(); renderMine(); }
+    catch(e){ document.getElementById("edMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save changes"; }
+  };
 }
 
 /* ============================================================
