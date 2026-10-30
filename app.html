@@ -90,7 +90,7 @@
 
   /* ===== Wider layout: LEFT SIDEBAR nav (tablet / PC) ===== */
   @media (min-width:580px){
-    :root{ --maxw:960px; }
+    :root{ --maxw:1180px; }
     header h1{ font-size:22px; }
     body:not(.auth) .wrap{
       display:grid; column-gap:20px; padding:16px 20px 28px;
@@ -185,6 +185,32 @@
   .toprow:last-child{border-bottom:none}
   .toprank{width:26px;height:26px;border-radius:999px;background:var(--grad);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
   @media (min-width:580px){ .tiles{grid-template-columns:repeat(4,1fr)} }
+
+  /* ===== Wider desktop + subtle page glow ===== */
+  @media (min-width:1360px){ :root{ --maxw:1400px; } }
+  @media (min-width:580px){ body:not(.auth){ background:radial-gradient(1100px 480px at 100% -8%, rgba(99,102,241,.07), transparent 62%) var(--bg); } }
+  .card{transition:box-shadow .2s ease}
+
+  /* ===== Staff list: single compact rows ===== */
+  .urow{display:grid;grid-template-columns:1.7fr 1.2fr 1fr auto;gap:12px;align-items:center;padding:11px 6px;border-bottom:1px solid var(--border)}
+  .urow:last-child{border-bottom:none}
+  .urow.uhead{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border);padding:2px 6px 8px}
+  .urow .uname{font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .urow .uname .muted{font-weight:500}
+  .urow select{padding:8px 10px;font-size:13px;border-radius:10px}
+  .urow.inactive{opacity:.5}
+  .uact{display:flex;gap:6px;justify-content:flex-end}
+  .iconbtn{width:36px;height:36px;min-width:36px;padding:0;border-radius:10px;background:var(--chip);color:var(--accent);font-size:15px;
+    display:inline-flex;align-items:center;justify-content:center;transition:transform .12s}
+  .iconbtn:hover{transform:translateY(-1px)}
+  .iconbtn.danger{background:#fef2f2;color:#dc2626}
+  .iconbtn.ok{background:#f0fdf4;color:#16a34a}
+  @media (max-width:579px){
+    .urow{grid-template-columns:1fr 1fr;row-gap:8px}
+    .urow .uname{grid-column:1 / -1}
+    .uact{grid-column:1 / -1;justify-content:flex-start}
+    .urow.uhead{display:none}
+  }
 </style>
 </head>
 <body>
@@ -662,37 +688,50 @@ async function renderAdmin(){
     app.appendChild(bulk);
     document.getElementById("bulkGo").onclick=bulkAdd;
 
-    // --- Existing staff ---
-    const uc=el(`<div class="card"><h2 class="sec">👤 Staff (${users.length})</h2><div id="uList"></div></div>`);
+    // --- Existing staff (single-row list) ---
+    const uc=el(`<div class="card"><h2 class="sec">👤 Staff (${users.length})</h2>
+      <div class="urow uhead"><div>Name</div><div>Team</div><div>Role</div><div class="uact">Actions</div></div>
+      <div id="uList"></div></div>`);
     app.appendChild(uc);
     const uList=uc.querySelector("#uList");
     users.forEach(u=>{
       const tOpts=S.teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?"selected":""}>${esc(t.name)}</option>`).join("");
       const rOpts=["officer","team_lead","manager","admin"].map(r=>`<option value="${r}" ${r===u.role?"selected":""}>${roleName[r]}</option>`).join("");
-      const row=el(`<div class="entry">
-        <div class="merchant">${esc(u.name||u.username||("User "+u.id))} <span class="muted">@${esc(u.username||"—")}</span></div>
-        <div class="grid2" style="margin-top:6px">
-          <div><label>Team</label><select data-f="team">${tOpts}</select></div>
-          <div><label>Role</label><select data-f="role">${rOpts}</select></div>
-          <div><label>Reset password (optional)</label><input data-f="pass" placeholder="leave blank to keep"></div>
-          <div style="display:flex;align-items:flex-end"><button class="btn sec sm" data-save="${u.id}">Save</button></div>
+      const row=el(`<div class="urow${u.active?"":" inactive"}">
+        <div class="uname">${esc(u.name||u.username||("User "+u.id))}<span class="muted"> @${esc(u.username||"—")}</span>${u.active?"":' <span class="tag pending">terminated</span>'}</div>
+        <div><select data-f="team">${tOpts}</select></div>
+        <div><select data-f="role">${rOpts}</select></div>
+        <div class="uact">
+          <button class="iconbtn" data-save="${u.id}" title="Save team / role">💾</button>
+          <button class="iconbtn" data-pw="${u.id}" title="Reset password">🔑</button>
+          ${u.active
+            ? `<button class="iconbtn danger" data-term="${u.id}" title="Terminate (disable login)">🚫</button>`
+            : `<button class="iconbtn ok" data-react="${u.id}" title="Reactivate">↩️</button>`}
         </div>
       </div>`);
+      const saveU=(extra)=> sbRpc("app_save_user", Object.assign({
+        p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
+        p_user_id:u.id, p_name:u.name, p_username:u.username, p_password:"",
+        p_team_id: parseInt(row.querySelector("[data-f=team]").value,10),
+        p_role: row.querySelector("[data-f=role]").value,
+        p_active: u.active
+      }, extra||{}));
       row.querySelector("[data-save]").onclick=async()=>{
-        const b=row.querySelector("[data-save]"); b.disabled=true; b.textContent="Saving…";
-        try{
-          await sbRpc("app_save_user",{
-            p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
-            p_user_id:u.id, p_name:u.name, p_username:u.username,
-            p_password: row.querySelector("[data-f=pass]").value || "",
-            p_team_id: parseInt(row.querySelector("[data-f=team]").value,10),
-            p_role: row.querySelector("[data-f=role]").value,
-            p_active: true
-          });
+        const b=row.querySelector("[data-save]"); b.disabled=true;
+        try{ await saveU();
           if(u.id===AUTH.user.id){ AUTH.user.role=row.querySelector("[data-f=role]").value; AUTH.user.team_id=parseInt(row.querySelector("[data-f=team]").value,10); ls("kpihub_session",JSON.stringify(AUTH.user)); }
-          b.textContent="Saved ✓"; setTimeout(()=>{b.textContent="Save";b.disabled=false;},1200);
-        }catch(e){ b.disabled=false; b.textContent="Save"; alert("Error: "+e.message); }
+          b.textContent="✓"; setTimeout(()=>{b.textContent="💾";b.disabled=false;},1000);
+        }catch(e){ b.disabled=false; alert("Error: "+e.message); }
       };
+      row.querySelector("[data-pw]").onclick=async()=>{
+        const np=prompt("New password for "+(u.name||u.username)+":"); if(!np) return;
+        try{ await saveU({p_password:np}); alert("Password updated for "+(u.name||u.username)+"."); }catch(e){ alert("Error: "+e.message); }
+      };
+      const tbtn=row.querySelector("[data-term]");
+      if(tbtn) tbtn.onclick=async()=>{ if(!(await askConfirm('Terminate "'+(u.name||u.username)+'"? They can no longer log in. Their records are kept and you can reactivate later.'))) return;
+        try{ await saveU({p_active:false}); await reloadTeams(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      const rbtn=row.querySelector("[data-react]");
+      if(rbtn) rbtn.onclick=async()=>{ try{ await saveU({p_active:true}); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
       uList.appendChild(row);
     });
 
