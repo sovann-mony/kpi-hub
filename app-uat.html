@@ -1,0 +1,1066 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KPI Hub</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
+    --border:#e5e7eb; --accent:#2563eb; --accent-text:#ffffff;
+    --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --chip:#eef2ff; --maxw:560px;
+  }
+  body.tg{
+    --bg:var(--tg-theme-bg-color,#f3f4f6);
+    --card:var(--tg-theme-secondary-bg-color,#ffffff);
+    --text:var(--tg-theme-text-color,#111827);
+    --muted:var(--tg-theme-hint-color,#6b7280);
+    --accent:var(--tg-theme-button-color,#2563eb);
+    --accent-text:var(--tg-theme-button-text-color,#ffffff);
+  }
+  /* explicit day / night (overrides Telegram theme when chosen) */
+  body.theme-light{ --bg:#f3f4f6;--card:#ffffff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;--accent:#2563eb;--accent-text:#ffffff;--chip:#eef2ff; }
+  body.theme-dark{ --bg:#0b1220;--card:#131c2e;--text:#e5e9f0;--muted:#8b98ad;--border:#263247;--accent:#3b82f6;--accent-text:#ffffff;--chip:#1b2a44; }
+  .theme-toggle{ background:var(--chip);color:var(--accent);border-radius:999px;width:36px;height:36px;min-width:36px;padding:0;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:12px 12px 92px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 2px 10px}
+  header h1{font-size:18px;margin:0;font-weight:700}
+  .who{font-size:12px;color:var(--muted);text-align:right}
+  .who a{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:600}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--chip);color:var(--accent)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
+  input,select,textarea{width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;font-size:15px;
+    background:var(--card);color:var(--text);font-family:inherit}
+  textarea{min-height:64px;resize:vertical}
+  button{cursor:pointer;border:none;border-radius:10px;font-size:15px;font-weight:700;padding:12px 14px;font-family:inherit}
+  .btn{background:var(--accent);color:var(--accent-text);width:100%}
+  .btn.sec{background:var(--chip);color:var(--accent)}
+  .btn.sm{width:auto;padding:7px 12px;font-size:13px}
+  .btn.danger{background:#fef2f2;color:#b91c1c}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .pts{font-weight:700;color:var(--accent)}
+  .muted{color:var(--muted);font-size:13px}
+  .entry{border:1px solid var(--border);border-radius:12px;padding:11px;margin:8px 0;background:var(--card)}
+  .entry .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .entry .merchant{font-weight:700}
+  .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .tag.pending{background:#fef3c7;color:#92400e}
+  .tag.progress{background:#dbeafe;color:#1e40af}
+  .tag.done{background:#dcfce7;color:#166534}
+  .flag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;color:#fff}
+  .flag.below{background:var(--bad)} .flag.track{background:var(--ok)} .flag.over{background:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--border)}
+  th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  td.num,th.num{text-align:right}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  nav{display:flex;background:var(--card);border:1px solid var(--border)}
+  nav button{flex:1;background:none;color:var(--muted);border-radius:0;padding:10px 4px;font-size:11px;font-weight:600}
+  nav button.active{color:var(--accent)}
+  nav button .ic{display:block;font-size:19px;line-height:1.1}
+  /* mobile: fixed bottom bar */
+  nav.mobile{position:fixed;left:0;right:0;bottom:0;max-width:var(--maxw);margin:0 auto;border-left:none;border-right:none;border-bottom:none;z-index:20}
+  .hide{display:none}
+  .notice{padding:10px 12px;border-radius:10px;font-size:13px;margin:8px 0}
+  .notice.err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+  .notice.ok{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+  .center{text-align:center;padding:30px 10px;color:var(--muted)}
+  h2.sec{font-size:15px;margin:4px 0 2px}
+  .spin{display:inline-block;width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .login-box{max-width:380px;margin:6vh auto 0}
+  .brand{text-align:center;margin-bottom:6px}
+  .brand .big{font-size:26px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:11px;letter-spacing:-.01em}
+  .brand .big .logo{width:44px;height:44px;margin:0}
+  .brandrow{display:flex;align-items:center}
+  .brandrow span{letter-spacing:-.01em}
+  .logo{width:1.4em;height:1.4em;margin-right:.4em;vertical-align:-0.32em;
+    filter:drop-shadow(0 2px 6px rgba(59,130,246,.38))}
+
+  /* ===== Wider layout: LEFT SIDEBAR nav (tablet / PC) ===== */
+  @media (min-width:580px){
+    :root{ --maxw:1180px; }
+    header h1{ font-size:22px; }
+    body:not(.auth) .wrap{
+      display:grid; column-gap:20px; padding:16px 20px 28px;
+      grid-template-columns:210px minmax(0,1fr);
+      grid-template-areas:"head head" "nav main";
+    }
+    body:not(.auth) header{ grid-area:head; }
+    body:not(.auth) #app{ grid-area:main; min-width:0; }
+    body:not(.auth) nav{
+      grid-area:nav; flex-direction:column; align-items:stretch;
+      position:sticky; top:14px; align-self:start;
+      border-radius:12px; overflow:hidden; margin:0;
+    }
+    body:not(.auth) nav button{ justify-content:flex-start; border-right:none;
+      border-bottom:1px solid var(--border); min-width:0; padding:12px 16px; font-size:14px; }
+    body:not(.auth) nav button:last-child{ border-bottom:none; }
+    body:not(.auth) nav button .ic{ display:inline; font-size:16px; margin-right:9px; }
+    .login-box{ margin-top:9vh; }
+  }
+  /* ===== Full desktop: 2-column forms ===== */
+  @media (min-width:820px){
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; align-items:start; }
+    .span2{ grid-column:1 / -1; }
+  }
+
+  /* ============ PREMIUM THEME ============ */
+  :root{
+    --accent:#4f46e5; --accent2:#2563eb; --bg:#f5f7fb; --border:#e9edf4; --chip:#eef1ff;
+    --grad:linear-gradient(135deg,#6366f1 0%,#3b82f6 58%,#06b6d4 125%);
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.06);
+    --shadow-lg:0 14px 44px rgba(15,23,42,.16);
+    --ring:0 0 0 3px rgba(79,70,229,.18); --radius:16px;
+  }
+  body.theme-light{ --bg:#f5f7fb;--card:#ffffff;--text:#0f172a;--muted:#64748b;--border:#e9edf4;--accent:#4f46e5;--accent-text:#fff;--chip:#eef1ff;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.06);--shadow-lg:0 14px 44px rgba(15,23,42,.16);--ring:0 0 0 3px rgba(79,70,229,.18); }
+  body.theme-dark{ --bg:#070b16;--card:#111a2c;--text:#e8edf7;--muted:#90a0ba;--border:#223049;--accent:#818cf8;--accent-text:#0b1020;--chip:#1a2742;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.4);--shadow-lg:0 16px 46px rgba(0,0,0,.55);--ring:0 0 0 3px rgba(129,140,248,.35); }
+  body{font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  header h1{font-weight:800;letter-spacing:-.02em}
+  .card{border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+  h2.sec{font-size:16px;font-weight:700;letter-spacing:-.01em}
+  input,select,textarea{padding:12px 13px;border:1.5px solid var(--border);border-radius:12px;transition:border-color .15s,box-shadow .15s}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring)}
+  button{border-radius:12px;transition:transform .12s ease,box-shadow .15s ease,background .15s}
+  .btn{background:var(--grad);color:#fff;box-shadow:0 6px 18px rgba(59,130,246,.30)}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 10px 26px rgba(59,130,246,.40)}
+  .btn:active{transform:translateY(0)}
+  .btn:disabled{opacity:.65;transform:none;box-shadow:none}
+  .btn.sec{background:var(--chip);color:var(--accent);box-shadow:none}
+  .btn.sec:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+  .pts{font-weight:800}
+  .entry{border-radius:14px;padding:13px;box-shadow:var(--shadow)}
+  .entry .merchant{letter-spacing:-.01em}
+  th{font-weight:700;letter-spacing:.04em}
+  th,td{padding:10px 6px}
+  tbody tr:last-child td{border-bottom:none}
+  nav{box-shadow:var(--shadow)}
+  nav button{transition:color .15s,background .15s}
+  nav.mobile{border-radius:16px 16px 0 0;box-shadow:0 -4px 20px rgba(15,23,42,.08)}
+  .notice{border-radius:12px}
+  .theme-toggle{width:38px;height:38px;min-width:38px;box-shadow:var(--shadow)}
+  .theme-toggle:hover{transform:translateY(-1px)}
+  .brandrow span{letter-spacing:-.02em;font-weight:800}
+  .logo{width:1.5em;height:1.5em;filter:drop-shadow(0 3px 8px rgba(59,130,246,.4))}
+  .brand .big{font-size:27px;gap:12px;letter-spacing:-.02em}
+  .brand .big .logo{width:46px;height:46px}
+  .login-box{max-width:390px}
+  .login-box .card{box-shadow:var(--shadow-lg);border-radius:22px;padding:24px;position:relative;overflow:hidden}
+  .login-box .card::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--grad)}
+  body.auth{background:radial-gradient(900px 440px at 50% -10%,rgba(99,102,241,.16),transparent 70%) var(--bg)}
+  @media (min-width:580px){
+    body:not(.auth) nav{ border-radius:16px; padding:6px; }
+    body:not(.auth) nav button{ border-bottom:none; border-radius:11px; margin:1px 0; position:relative; }
+    body:not(.auth) nav button.active{ background:var(--chip); color:var(--accent); font-weight:700; }
+    body:not(.auth) nav button.active::before{ content:""; position:absolute; left:0; top:9px; bottom:9px; width:3px; border-radius:0 3px 3px 0; background:var(--grad); }
+  }
+
+  /* ===== Dashboard ===== */
+  .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+  .tile{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+  .tile .tval{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--accent)}
+  .tile .tlbl{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+  .barrow{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .barlbl{width:120px;flex:0 0 auto;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bartrack{flex:1;height:10px;background:var(--chip);border-radius:999px;overflow:hidden}
+  .barfill{height:100%;border-radius:999px;transition:width .5s ease}
+  .barval{width:48px;text-align:right;font-weight:800;font-size:13px}
+  .statrow{display:flex;gap:8px;flex-wrap:wrap}
+  .statrow .tag{font-size:13px;padding:5px 12px}
+  .toprow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+  .toprow:last-child{border-bottom:none}
+  .toprank{width:26px;height:26px;border-radius:999px;background:var(--grad);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  @media (min-width:580px){ .tiles{grid-template-columns:repeat(4,1fr)} }
+
+  /* ===== Wider desktop + subtle page glow ===== */
+  @media (min-width:1360px){ :root{ --maxw:1400px; } }
+  @media (min-width:580px){ body:not(.auth){ background:radial-gradient(1100px 480px at 100% -8%, rgba(99,102,241,.07), transparent 62%) var(--bg); } }
+  .card{transition:box-shadow .2s ease}
+
+  /* ===== Staff list: single compact rows ===== */
+  .urow{display:grid;grid-template-columns:1.7fr 1.2fr 1fr auto;gap:12px;align-items:center;padding:11px 6px;border-bottom:1px solid var(--border)}
+  .urow:last-child{border-bottom:none}
+  .urow.uhead{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border);padding:2px 6px 8px}
+  .urow .uname{font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .urow .uname .muted{font-weight:500}
+  .urow select{padding:8px 10px;font-size:13px;border-radius:10px}
+  .urow.inactive{opacity:.5}
+  .uact{display:flex;gap:6px;justify-content:flex-end}
+  .iconbtn{width:36px;height:36px;min-width:36px;padding:0;border-radius:10px;background:var(--chip);color:var(--accent);font-size:15px;
+    display:inline-flex;align-items:center;justify-content:center;transition:transform .12s}
+  .iconbtn:hover{transform:translateY(-1px)}
+  .iconbtn.danger{background:#fef2f2;color:#dc2626}
+  .iconbtn.ok{background:#f0fdf4;color:#16a34a}
+  @media (max-width:579px){
+    .urow{grid-template-columns:1fr 1fr;row-gap:8px}
+    .urow .uname{grid-column:1 / -1}
+    .uact{grid-column:1 / -1;justify-content:flex-start}
+    .urow.uhead{display:none}
+  }
+
+  /* ===== My Entries single rows + status dropdown ===== */
+  .erow{display:grid;grid-template-columns:1.8fr 1fr auto;gap:12px;align-items:center;padding:11px 6px;border-bottom:1px solid var(--border)}
+  .erow:last-child{border-bottom:none}
+  .erow .emer{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+  .erow .emer .muted{font-weight:500}
+  .erow .edate{font-size:12px}
+  .estat{justify-self:end}
+  .statsel{width:auto;min-width:98px;border-radius:999px;border:1.5px solid var(--border);padding:7px 10px;font-weight:700;font-size:13px;cursor:pointer}
+  .statsel.done{background:#dcfce7;color:#166534;border-color:#bbf7d0}
+  .statsel.pending{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+  .statsel.progress{background:#fef3c7;color:#92400e;border-color:#fde68a}
+  @media (max-width:579px){ .erow{grid-template-columns:1fr auto} .erow .edate{display:none} }
+
+  /* ===== My performance bar ===== */
+  .perfrow{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+  .perfrow .barlbl{width:120px;flex:0 0 auto;color:var(--accent);font-weight:700}
+  .perfrow .bartrack{overflow:visible;height:12px;position:relative}
+  .perfrow .barval{min-width:46px;text-align:right;font-weight:800;font-size:15px}
+  .bar-target{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:2px;z-index:1}
+
+  /* ===== My Entries full table ===== */
+  .etable{min-width:780px}
+  .etable th,.etable td{padding:12px 10px;vertical-align:middle}
+  .etable td.rem{color:var(--muted);max-width:240px}
+  .etable .nowrap{white-space:nowrap}
+  .etable tbody tr:hover{background:rgba(99,102,241,.05)}
+  .etable td .statsel{min-width:96px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="brandrow" id="brandH"><span>KPI&nbsp;Hub</span></h1>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="themeBtn" class="theme-toggle" title="Day / night">🌙</button>
+      <div class="who" id="who"></div>
+    </div>
+  </header>
+  <nav id="nav" class="hide">
+    <button data-tab="log" id="navLog" class="active"><span class="ic">➕</span>Log Task</button>
+    <button data-tab="mine" id="navMine"><span class="ic">📋</span>My Entries</button>
+    <button data-tab="summary" id="navSummary"><span class="ic">📈</span>Summary</button>
+    <button data-tab="dashboard" id="navDashboard"><span class="ic">📊</span>Dashboard</button>
+    <button data-tab="admin" id="navAdmin"><span class="ic">⚙️</span>Admin</button>
+  </nav>
+  <div id="app"><div class="center"><span class="spin"></span><div>Loading…</div></div></div>
+</div>
+
+<script>
+/* ============================================================
+   KPI Hub — Telegram mini app  (Supabase backend, username/password login)
+   ============================================================ */
+const SUPABASE_URL = "https://rhyzyurplrceihdqfwtx.supabase.co";
+const SUPABASE_KEY = "sb_publishable_64PoRnyLVJQrcrkNTsOTKA_tPJthL-n";
+const DAILY_DEFAULT = 40;
+
+const LOGO = '<svg class="logo" viewBox="0 0 48 48" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="kpiG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs><rect x="3" y="3" width="42" height="42" rx="13" fill="url(#kpiG)"/><rect x="3.5" y="3.5" width="41" height="41" rx="12.5" fill="none" stroke="#ffffff" stroke-opacity=".18"/><rect x="12" y="27" width="6.5" height="9" rx="2.2" fill="#ffffff" opacity=".72"/><rect x="20.75" y="22" width="6.5" height="14" rx="2.2" fill="#ffffff" opacity=".86"/><rect x="29.5" y="16" width="6.5" height="20" rx="2.2" fill="#ffffff"/><path d="M13 24.5 L23 19.5 L31.5 21.5 L37 13.5" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><circle cx="37" cy="13.5" r="2.4" fill="#ffffff"/></svg>';
+
+const REST = SUPABASE_URL.replace(/\/+$/,"") + "/rest/v1/";
+const H = { "apikey":SUPABASE_KEY, "Authorization":"Bearer "+SUPABASE_KEY, "Content-Type":"application/json" };
+const USER_COLS = "id,telegram_id,name,role,team_id,active,username"; // never password_hash
+
+async function sbGet(path){
+  const r = await fetch(REST+path, {headers:H});
+  if(!r.ok) throw new Error("GET "+path+" → "+r.status+" "+(await r.text()));
+  return r.json();
+}
+async function sbInsert(table, body){
+  const r = await fetch(REST+table, {method:"POST",headers:{...H,"Prefer":"return=representation"},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("INSERT "+table+" → "+r.status+" "+(await r.text()));
+  return r.json();
+}
+async function sbPatch(table, match, body){
+  const r = await fetch(REST+table+"?"+match, {method:"PATCH",headers:{...H,"Prefer":"return=representation"},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("PATCH "+table+" → "+r.status+" "+(await r.text()));
+  return r.json();
+}
+async function sbRpc(fn, args){
+  const r = await fetch(REST+"rpc/"+fn, {method:"POST",headers:H,body:JSON.stringify(args)});
+  if(!r.ok) throw new Error((await r.text()) || ("RPC "+fn+" "+r.status));
+  return r.json();
+}
+
+/* ---- Telegram (theme/expand only; auth is username/password) ---- */
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+if(tg){ try{ tg.ready(); tg.expand(); }catch(e){} document.body.classList.add("tg"); }
+
+/* ---- theme (day / night) ---- */
+function currentTheme(){
+  let t=null; try{ t=localStorage.getItem("kpihub_theme"); }catch(e){}
+  if(t!=="light" && t!=="dark"){
+    t=(tg&&tg.colorScheme)?tg.colorScheme:((window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light");
+  }
+  return t;
+}
+function applyTheme(t){
+  document.body.classList.remove("theme-light","theme-dark");
+  document.body.classList.add(t==="dark"?"theme-dark":"theme-light");
+  try{ localStorage.setItem("kpihub_theme",t); }catch(e){}
+  const b=document.getElementById("themeBtn"); if(b) b.textContent=(t==="dark"?"☀️":"🌙");
+}
+applyTheme(currentTheme());
+(function(){ const b=document.getElementById("themeBtn");
+  if(b) b.onclick=()=>applyTheme(document.body.classList.contains("theme-dark")?"light":"dark"); })();
+
+/* ---- state ---- */
+const AUTH = { user:null, pass:null };               // pass kept in memory only
+const S = { teams:[], supports:[], services:[], categories:[], settings:{}, tab:"log", _month:null };
+const app = document.getElementById("app");
+const nav = document.getElementById("nav");
+const el = (h)=>{const d=document.createElement("div");d.innerHTML=h;return d.firstElementChild;};
+const roleName = {officer:"Officer",team_lead:"Team Lead",manager:"Manager",admin:"Admin"};
+function teamName(id){const t=S.teams.find(t=>t.id===id);return t?t.name:"—";}
+function teamColor(id){const t=S.teams.find(t=>t.id===id);return t?t.color:"#9ca3af";}
+function canSeeSummary(){return AUTH.user && ["team_lead","manager","admin"].includes(AUTH.user.role);}
+function isAdmin(){return AUTH.user && AUTH.user.role==="admin";}
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){return null;} }
+
+/* set nav layout responsive to width */
+function applyNavMode(){ nav.classList.toggle("mobile", window.matchMedia("(max-width:579px)").matches); }
+window.addEventListener("resize", applyNavMode);
+
+/* ============================================================
+   BOOT  →  login or app
+   ============================================================ */
+async function boot(){
+  try{ document.getElementById("brandH").innerHTML = LOGO + '<span>KPI&nbsp;Hub</span>'; }catch(e){}
+  try{
+    S.teams    = await sbGet("teams?select=*&active=eq.true&order=id");
+    S.supports = await sbGet("support_types?select=*&active=eq.true&order=points.desc");
+    S.services = await sbGet("services?select=*&order=id");
+    S.categories = await sbGet("categories?select=*&order=id");
+    const st   = await sbGet("settings?select=*");
+    st.forEach(r=>S.settings[r.key]=r.value);
+  }catch(e){
+    app.innerHTML = "<div class='notice err'>Could not connect to the database.<br><br>"+esc(e.message)+"</div>";
+    return;
+  }
+  const saved = ls("kpihub_session");
+  if(saved){ try{ AUTH.user = JSON.parse(saved); }catch(e){} }
+  if(AUTH.user) startApp(); else renderLogin();
+}
+
+/* ============================================================
+   LOGIN
+   ============================================================ */
+function renderLogin(msg){
+  nav.classList.add("hide");
+  document.body.classList.add("auth");
+  document.getElementById("who").innerHTML="";
+  app.innerHTML="";
+  const box = el(`<div class="login-box">
+    <div class="brand"><div class="big">${LOGO}<span>KPI&nbsp;Hub</span></div><div class="muted">Please sign in</div></div>
+    <div class="card">
+      ${msg?`<div class="notice err">${esc(msg)}</div>`:""}
+      <label>Username</label>
+      <input id="li_user" autocomplete="username" autocapitalize="off" placeholder="your username">
+      <label>Password</label>
+      <input id="li_pass" type="password" autocomplete="current-password" placeholder="your password">
+      <div style="height:12px"></div>
+      <button class="btn" id="li_go">Sign in</button>
+    </div>
+  </div>`);
+  app.appendChild(box);
+  const go=()=>doLogin();
+  document.getElementById("li_go").onclick=go;
+  document.getElementById("li_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+}
+async function doLogin(){
+  const u=document.getElementById("li_user").value.trim();
+  const p=document.getElementById("li_pass").value;
+  if(!u||!p){ renderLogin("Enter username and password."); return; }
+  const btn=document.getElementById("li_go"); btn.disabled=true; btn.textContent="Signing in…";
+  try{
+    const rows = await sbRpc("app_login",{p_username:u,p_password:p});
+    if(Array.isArray(rows) && rows.length){
+      AUTH.user = rows[0]; AUTH.pass = p;
+      ls("kpihub_session", JSON.stringify(AUTH.user));
+      startApp();
+    }else{
+      renderLogin("Wrong username or password.");
+    }
+  }catch(e){
+    renderLogin("Login error: "+e.message);
+  }
+}
+function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); renderLogin(); }
+
+/* ============================================================
+   START APP (after login)
+   ============================================================ */
+function startApp(){
+  applyNavMode();
+  document.body.classList.remove("auth");
+  nav.classList.remove("hide");
+  const r=AUTH.user.role;
+  document.getElementById("navDashboard").classList.toggle("hide", !["manager","admin"].includes(r));
+  document.getElementById("navSummary").classList.toggle("hide", !["team_lead","manager","admin"].includes(r));
+  document.getElementById("navAdmin").classList.toggle("hide", r!=="admin");
+  document.getElementById("who").innerHTML =
+    esc(AUTH.user.name||AUTH.user.username)+"<br>"+
+    "<span class='badge'>"+roleName[AUTH.user.role]+"</span> "+
+    "<span class='muted'>"+esc(teamName(AUTH.user.team_id))+"</span> · "+
+    "<a id='logoutLink'>Log out</a>";
+  document.getElementById("logoutLink").onclick=logout;
+  nav.querySelectorAll("button").forEach(b=>b.onclick=()=>show(b.dataset.tab));
+  show("log");
+}
+function setActive(tab){ nav.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab)); }
+function show(tab){
+  S.tab=tab; setActive(tab);
+  if(tab==="log") renderLog();
+  else if(tab==="mine") renderMine();
+  else if(tab==="dashboard") renderDashboard();
+  else if(tab==="summary") renderSummary();
+  else if(tab==="admin") renderAdmin();
+}
+
+/* ============================================================
+   LOG TASK
+   ============================================================ */
+function renderLog(){
+  const today = new Date().toISOString().slice(0,10);
+  const stOpts = S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
+  const svcOpts = '<option value="">—</option>' + S.services.map(s=>`<option>${esc(s.name)}</option>`).join("");
+  const catOpts = '<option value="">—</option>' + S.categories.map(c=>`<option>${esc(c.name)}</option>`).join("");
+  app.innerHTML="";
+  const noTeam = !AUTH.user.team_id;
+  const c = el(`<div class="card">
+    <h2 class="sec">➕ Log a task</h2>
+    <div id="logMsg">${noTeam?"<div class='notice err'>Your team isn't set yet. Ask your admin to assign your team.</div>":""}</div>
+    <div class="grid2">
+      <div><label>Start date</label><input type="date" id="f_start" value="${today}"></div>
+      <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
+      <div><label>Contact</label><input id="f_contact" placeholder="name / phone"></div>
+      <div><label>Service</label><select id="f_service">${svcOpts}</select></div>
+      <div><label>Category</label><select id="f_category">${catOpts}</select></div>
+      <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label><select id="f_support">${stOpts}</select></div>
+      <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
+      <div><label>Resolved date</label><input type="date" id="f_resolved"></div>
+      <div class="span2"><label>Remark</label><textarea id="f_remark" placeholder="optional notes"></textarea></div>
+    </div>
+    <div style="height:12px"></div>
+    <button class="btn" id="saveEntry">Save entry</button>
+    <p class="muted" style="margin-top:10px">Team: <b>${esc(teamName(AUTH.user.team_id))}</b> · Logged as <b>${esc(AUTH.user.name||AUTH.user.username)}</b></p>
+  </div>`);
+  app.appendChild(c);
+  const sel=document.getElementById("f_support"), hint=document.getElementById("ptsHint");
+  const updPts=()=>{const o=sel.selectedOptions[0];hint.textContent=o?("= "+o.dataset.pts+" points"):"";};
+  sel.onchange=updPts; updPts();
+  document.getElementById("saveEntry").onclick=saveEntry;
+}
+async function saveEntry(){
+  const msg=document.getElementById("logMsg");
+  const merchant=document.getElementById("f_merchant").value.trim();
+  if(!merchant){ msg.innerHTML="<div class='notice err'>Please enter a merchant name.</div>"; return; }
+  const supId=parseInt(document.getElementById("f_support").value,10);
+  const sup=S.supports.find(s=>s.id===supId);
+  const btn=document.getElementById("saveEntry"); btn.disabled=true; btn.textContent="Saving…";
+  try{
+    await sbInsert("entries",{
+      start_date: document.getElementById("f_start").value || null,
+      merchant_name: merchant,
+      contact: document.getElementById("f_contact").value.trim() || null,
+      service: document.getElementById("f_service").value.trim() || null,
+      category: document.getElementById("f_category").value.trim() || null,
+      support_type_id: supId,
+      points: sup ? sup.points : 0,
+      status: document.getElementById("f_status").value,
+      resolved_date: document.getElementById("f_resolved").value || null,
+      remark: document.getElementById("f_remark").value.trim() || null,
+      team_id: AUTH.user.team_id,
+      staff_user_id: AUTH.user.id,
+      staff_name: AUTH.user.name || AUTH.user.username
+    });
+    if(tg){ try{ tg.HapticFeedback.notificationOccurred("success"); }catch(e){} }
+    renderLog();
+    document.getElementById("logMsg").innerHTML="<div class='notice ok'>✅ Saved! ("+(sup?sup.points:0)+" points)</div>";
+  }catch(e){
+    msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>";
+    btn.disabled=false; btn.textContent="Save entry";
+  }
+}
+
+/* ============================================================
+   MY ENTRIES
+   ============================================================ */
+async function renderMine(){
+  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+  try{
+    const mk=monthKey(new Date());
+    const parts=mk.split("-"); const y=+parts[0], m=+parts[1];
+    const from=`${mk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
+    const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&select=*,support_types(name)&order=created_at.desc&limit=300");
+    const myPts=rows.filter(r=>r.start_date && r.start_date>=from && r.start_date<to).reduce((a,e)=>a+(e.points||0),0);
+    const cal=(await sbGet(`month_calendar?select=working_days&month=eq.${mk}`))[0];
+    const daily=parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
+    const target=cal?daily*cal.working_days:null;
+    const mLabel=new Date(y,m-1,1).toLocaleString('en',{month:'short',year:'numeric'});
+    const max = target? Math.max(target,myPts)*1.1 : Math.max(myPts,1);
+    const pct = target? Math.min(100,Math.round(myPts/max*100)) : (myPts>0?100:0);
+    const tpos = target? Math.round(target/max*100) : 0;
+    let flagHtml="", fillColor="var(--accent)";
+    if(target!=null){
+      if(myPts<target){ flagHtml='<span class="flag below">Below</span>'; fillColor="var(--bad)"; }
+      else if(myPts<=target*1.15){ flagHtml='<span class="flag track">On track</span>'; fillColor="var(--ok)"; }
+      else { flagHtml='<span class="flag over">Over</span>'; fillColor="var(--warn)"; }
+    }
+    app.innerHTML="";
+    // --- My performance ---
+    app.appendChild(el(`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <h2 class="sec">📈 My performance</h2>
+        <span class="muted">${mLabel}${target!=null?(" · target "+target+" pts"):" · month not set in Admin"}</span>
+      </div>
+      <div class="perfrow">
+        <div class="barlbl">${esc(AUTH.user.name||AUTH.user.username)}</div>
+        <div class="bartrack">${target!=null?`<div class="bar-target" style="left:${tpos}%"></div>`:""}<div class="barfill" style="width:${pct}%;background:${fillColor}"></div></div>
+        <div class="barval">${myPts}</div>
+        ${flagHtml}
+      </div>
+    </div>`));
+    // --- My entries (single rows) ---
+    const listCard=el(`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <h2 class="sec">📋 My recent entries</h2>
+        <span class="muted">${rows.length} total · change status anytime</span>
+      </div>
+      <div style="overflow-x:auto;margin-top:8px"><table class="etable">
+        <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th>Status</th><th></th></tr></thead>
+        <tbody id="eList"></tbody></table></div></div>`);
+    app.appendChild(listCard);
+    const list=listCard.querySelector("#eList");
+    if(!rows.length){ list.innerHTML="<tr><td colspan='6' class='center'>No entries yet. Log your first task!</td></tr>"; return; }
+    let rowsHtml="";
+    rows.forEach(r=>{
+      const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
+      const sup = r.support_types?r.support_types.name:"";
+      rowsHtml += `<tr>`
+        + `<td class="nowrap">${esc(fmtDate(r.start_date))}</td>`
+        + `<td><b>${esc(r.merchant_name||"—")}</b></td>`
+        + `<td>${esc(r.contact||"N/A")}</td>`
+        + `<td>${esc(sup||"—")}</td>`
+        + `<td class="rem">${esc(r.remark||"—")}</td>`
+        + `<td><select class="statsel ${stc}" data-id="${r.id}">`
+          + `<option${r.status==="Pending"?" selected":""}>Pending</option>`
+          + `<option${r.status==="In Progress"?" selected":""}>In Progress</option>`
+          + `<option${r.status==="Done"?" selected":""}>Done</option>`
+        + `</select></td>`
+        + `<td><button class="iconbtn danger" data-del="${r.id}" title="Remove entry">🗑️</button></td></tr>`;
+    });
+    list.innerHTML = rowsHtml;
+    const byId={}; rows.forEach(r=>byId[r.id]=r);
+    list.querySelectorAll("select[data-id]").forEach(sel=>{
+      const r=byId[parseInt(sel.getAttribute("data-id"),10)];
+      sel.onchange=async()=>{
+        const next=sel.value; const body={status:next};
+        if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
+        try{ await sbPatch("entries","id=eq."+r.id,body); r.status=next; if(body.resolved_date) r.resolved_date=body.resolved_date;
+          sel.className="statsel "+(next==="Done"?"done":(next==="In Progress"?"progress":"pending"));
+        }catch(e){ alert("Error: "+e.message); sel.value=r.status; }
+      };
+    });
+    list.querySelectorAll("button[data-del]").forEach(btn=>{
+      const id=parseInt(btn.getAttribute("data-del"),10);
+      btn.onclick=async()=>{
+        if(!(await askConfirm("Remove this entry? It will be permanently deleted."))) return;
+        try{ const x=await fetch(REST+"entries?id=eq."+id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); renderMine(); }
+        catch(e){ alert("Error: "+e.message); }
+      };
+    });
+  }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+}
+async function changeStatus(r){
+  const next = r.status==="Pending"?"In Progress":(r.status==="In Progress"?"Done":"Pending");
+  const body={status:next};
+  if(next==="Done" && !r.resolved_date) body.resolved_date=new Date().toISOString().slice(0,10);
+  try{ await sbPatch("entries","id=eq."+r.id,body); renderMine(); }
+  catch(e){ alert("Error: "+e.message); }
+}
+
+/* ============================================================
+   SUMMARY
+   ============================================================ */
+function monthKey(d){return d.toISOString().slice(0,7);}
+function daysInMonth(mk){ const p=mk.split("-").map(Number); return new Date(p[0],p[1],0).getDate(); }
+function weekendsInMonth(mk){ const p=mk.split("-").map(Number); const dim=new Date(p[0],p[1],0).getDate(); let w=0; for(let d=1;d<=dim;d++){ const dow=new Date(p[0],p[1]-1,d).getDay(); if(dow===0||dow===6) w++; } return w; }
+const PALETTE=["#2563eb","#16a34a","#db2777","#d97706","#7c3aed","#0891b2","#dc2626","#0d9488","#c026d3","#ca8a04"];
+async function reloadTeams(){ S.teams = await sbGet("teams?select=*&active=eq.true&order=id"); }
+async function reloadSupports(){ S.supports = await sbGet("support_types?select=*&active=eq.true&order=points.desc"); }
+async function reloadServices(){ S.services = await sbGet("services?select=*&order=id"); }
+async function reloadCategories(){ S.categories = await sbGet("categories?select=*&order=id"); }
+function fmtDate(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); if(p.length!==3) return d;
+  const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return p[2]+"-"+(m[parseInt(p[1],10)-1]||p[1])+"-"+p[0]; }
+function askConfirm(msg){ return new Promise(res=>{ try{ if(tg && tg.showConfirm){ tg.showConfirm(msg, ok=>res(!!ok)); return; } }catch(e){} res(window.confirm(msg)); }); }
+async function renderSummary(){
+  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+  const mk = S._month || monthKey(new Date());
+  S._month = mk;
+  try{
+    const [y,m]=mk.split("-").map(Number);
+    const from = `${mk}-01`;
+    const to = new Date(y, m, 1).toISOString().slice(0,10);
+    const entries = await sbGet(`entries?select=team_id,points,start_date&start_date=gte.${from}&start_date=lt.${to}&limit=5000`);
+    const users   = await sbGet("users?select=team_id,active&active=eq.true");
+    const cal     = await sbGet(`month_calendar?select=*&month=eq.${mk}`);
+    const targets = await sbGet(`monthly_targets?select=*&month=eq.${mk}`);
+    const daily = parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
+    const calRow = cal[0];
+    const staffBy={}, actualBy={}, leaveBy={};
+    users.forEach(u=>{ if(u.team_id) staffBy[u.team_id]=(staffBy[u.team_id]||0)+1; });
+    entries.forEach(e=>{ if(e.team_id) actualBy[e.team_id]=(actualBy[e.team_id]||0)+(e.points||0); });
+    targets.forEach(t=>{ leaveBy[t.team_id]=t.leave_days||0; });
+
+    app.innerHTML="";
+    const head=el(`<div class="card">
+      <h2 class="sec">📈 Team summary</h2>
+      <label>Month</label>
+      <input type="month" id="mSel" value="${mk}">
+      ${calRow?`<p class="muted" style="margin-top:8px">Working days: <b>${calRow.working_days}</b> · Holidays: <b>${calRow.holidays}</b></p>`
+             :`<div class="notice err" style="margin-top:8px">No working days set for this month. Set it in Admin → Month setup.</div>`}
+    </div>`);
+    app.appendChild(head);
+    document.getElementById("mSel").onchange=(e)=>{S._month=e.target.value;renderSummary();};
+
+    let teamsToShow = S.teams;
+    if(AUTH.user.role==="team_lead") teamsToShow = S.teams.filter(t=>t.id===AUTH.user.team_id);
+
+    const tbl=el(`<div class="card"><table>
+      <thead><tr><th>Team</th><th class="num">Staff</th><th class="num">Target</th><th class="num">Actual</th><th>Flag</th></tr></thead>
+      <tbody id="sumBody"></tbody></table></div>`);
+    app.appendChild(tbl);
+    const body=tbl.querySelector("#sumBody");
+    let tgtSum=0, actSum=0, rowsHtml="";
+    teamsToShow.forEach(t=>{
+      const staff=staffBy[t.id]||0;
+      const actual=actualBy[t.id]||0;
+      let target=null;
+      if(calRow){
+        const staffDays=(calRow.working_days-calRow.holidays)*staff-(leaveBy[t.id]||0);
+        target=Math.max(0, Math.round(daily*Math.max(0,staffDays)));
+      }
+      let flag="";
+      if(target!=null){
+        if(actual<target) flag=`<span class="flag below">Below</span>`;
+        else if(actual<=target*1.15) flag=`<span class="flag track">On track</span>`;
+        else flag=`<span class="flag over">Over</span>`;
+        tgtSum+=target; actSum+=actual;
+      }
+      rowsHtml += `<tr>`
+        + `<td><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</td>`
+        + `<td class="num">${staff}</td>`
+        + `<td class="num">${target==null?"—":target}</td>`
+        + `<td class="num"><b>${actual}</b></td>`
+        + `<td>${flag}</td></tr>`;
+    });
+    if(calRow && teamsToShow.length>1){
+      rowsHtml += `<tr><td><b>Total</b></td><td class="num"></td>`
+        + `<td class="num"><b>${tgtSum}</b></td><td class="num"><b>${actSum}</b></td><td></td></tr>`;
+    }
+    body.innerHTML = rowsHtml;
+  }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+}
+
+/* ============================================================
+   DASHBOARD  (manager / head / admin) — read-only overview
+   ============================================================ */
+async function renderDashboard(){
+  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+  const mk = S._dmonth || monthKey(new Date());
+  S._dmonth = mk;
+  try{
+    const [y,m]=mk.split("-").map(Number);
+    const from=`${mk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
+    const entries=await sbGet(`entries?select=team_id,points,status,staff_name,staff_user_id&start_date=gte.${from}&start_date=lt.${to}&limit=10000`);
+    const users=await sbGet("users?select=team_id,active&active=eq.true");
+    const cal=(await sbGet(`month_calendar?select=*&month=eq.${mk}`))[0];
+    const targets=await sbGet(`monthly_targets?select=*&month=eq.${mk}`);
+    const daily=parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
+    const leaveBy={}; targets.forEach(t=>leaveBy[t.team_id]=t.leave_days||0);
+    const staffBy={}; users.forEach(u=>{ if(u.team_id) staffBy[u.team_id]=(staffBy[u.team_id]||0)+1; });
+    const actualBy={}; entries.forEach(e=>{ if(e.team_id) actualBy[e.team_id]=(actualBy[e.team_id]||0)+(e.points||0); });
+    const totalPoints=entries.reduce((a,e)=>a+(e.points||0),0);
+    const totalTasks=entries.length;
+    const activeStaff=users.length;
+    const stc={Pending:0,"In Progress":0,Done:0};
+    entries.forEach(e=>{ if(stc[e.status]!=null) stc[e.status]++; });
+    let tgtTotal=0; const hasTarget=!!cal;
+    S.teams.forEach(t=>{ if(cal){ const sd=(cal.working_days-cal.holidays)*(staffBy[t.id]||0)-(leaveBy[t.id]||0); tgtTotal+=Math.max(0,Math.round(daily*Math.max(0,sd))); } });
+    const pct = hasTarget && tgtTotal>0 ? Math.round(totalPoints/tgtTotal*100) : null;
+    const byStaff={};
+    entries.forEach(e=>{ const k=(e.staff_user_id!=null?("u"+e.staff_user_id):("n"+(e.staff_name||""))); if(!byStaff[k]) byStaff[k]={name:e.staff_name||"—",pts:0,tasks:0}; byStaff[k].pts+=(e.points||0); byStaff[k].tasks++; });
+    const top=Object.values(byStaff).sort((a,b)=>b.pts-a.pts).slice(0,5);
+    const maxTeam=Math.max(1,...S.teams.map(t=>actualBy[t.id]||0));
+
+    app.innerHTML="";
+    const head=el(`<div class="card"><h2 class="sec">📊 Dashboard</h2>
+      <label>Month</label><input type="month" id="dSel" value="${mk}"></div>`);
+    app.appendChild(head);
+    document.getElementById("dSel").onchange=(e)=>{ S._dmonth=e.target.value; renderDashboard(); };
+
+    app.appendChild(el(`<div class="tiles">
+      <div class="tile"><div class="tval">${totalPoints}</div><div class="tlbl">Total points</div></div>
+      <div class="tile"><div class="tval">${totalTasks}</div><div class="tlbl">Tasks logged</div></div>
+      <div class="tile"><div class="tval">${activeStaff}</div><div class="tlbl">Active staff</div></div>
+      <div class="tile"><div class="tval">${pct==null?"—":pct+"%"}</div><div class="tlbl">of target</div></div>
+    </div>`));
+
+    const barsHtml=S.teams.map(t=>{
+      const v=actualBy[t.id]||0; const w=Math.round(v/maxTeam*100);
+      return `<div class="barrow"><div class="barlbl"><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</div>`
+        +`<div class="bartrack"><div class="barfill" style="width:${w}%;background:${teamColor(t.id)}"></div></div>`
+        +`<div class="barval">${v}</div></div>`;
+    }).join("");
+    app.appendChild(el(`<div class="card"><h2 class="sec">Points by team</h2>${barsHtml}</div>`));
+
+    app.appendChild(el(`<div class="card"><h2 class="sec">Task status</h2>
+      <div class="statrow">
+        <span class="tag pending">Pending ${stc.Pending}</span>
+        <span class="tag progress">In Progress ${stc["In Progress"]}</span>
+        <span class="tag done">Done ${stc.Done}</span>
+      </div></div>`));
+
+    const topHtml = top.length ? top.map((p,i)=>`<div class="toprow"><div class="toprank">${i+1}</div>`
+      +`<div style="flex:1">${esc(p.name)}<div class="muted">${p.tasks} tasks</div></div>`
+      +`<div class="pts">${p.pts}</div></div>`).join("") : "<div class='muted'>No entries this month.</div>";
+    app.appendChild(el(`<div class="card"><h2 class="sec">🏆 Top performers</h2>${topHtml}</div>`));
+  }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+}
+
+/* ============================================================
+   ADMIN  (needs admin password in memory for staff changes)
+   ============================================================ */
+async function renderAdmin(){
+  if(!AUTH.pass){ renderAdminUnlock(); return; }
+  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+  try{
+    const users=await sbGet("users?select="+USER_COLS+"&order=id");
+    app.innerHTML="";
+    app.appendChild(el(`<div class="card"><h2 class="sec">⚙️ Admin</h2>
+      <p class="muted">Create staff logins, assign teams & roles, set points and monthly working days.</p></div>`));
+
+    // --- Add staff ---
+    const teamOpts=S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("");
+    const roleOpts=["officer","team_lead","manager","admin"].map(r=>`<option value="${r}">${roleName[r]}</option>`).join("");
+    const addc=el(`<div class="card"><h2 class="sec">➕ Add staff login</h2>
+      <div id="addMsg"></div>
+      <div class="grid2">
+        <div><label>Full name</label><input id="a_name" placeholder="e.g. Sok Dara"></div>
+        <div><label>Username</label><input id="a_user" autocapitalize="off" placeholder="e.g. dara"></div>
+        <div><label>Password</label><input id="a_pass" placeholder="set a password"></div>
+        <div><label>Team</label><select id="a_team">${teamOpts}</select></div>
+        <div><label>Role</label><select id="a_role">${roleOpts}</select></div>
+      </div>
+      <div style="height:10px"></div>
+      <button class="btn" id="a_save">Create staff</button>
+    </div>`);
+    app.appendChild(addc);
+    document.getElementById("a_save").onclick=addStaff;
+
+    // --- Bulk add staff ---
+    const bulk=el(`<div class="card"><h2 class="sec">⚡ Bulk add staff</h2>
+      <p class="muted">One person per line: <b>Full name, username, password, team, role</b>. Password optional (blank = auto-generated). Role optional (default Officer). Team = name or number 1–${S.teams.length}.</p>
+      <textarea id="bulkText" style="min-height:130px" placeholder="Sok Dara, dara, Pass@123, Team 1, officer&#10;Chan Nita, nita, , Team 2&#10;Vann Rith, rith, , Team 2, team_lead"></textarea>
+      <div id="bulkMsg"></div>
+      <button class="btn" id="bulkGo" style="margin-top:10px">Create all</button>
+    </div>`);
+    app.appendChild(bulk);
+    document.getElementById("bulkGo").onclick=bulkAdd;
+
+    // --- Existing staff (single-row list) ---
+    const uc=el(`<div class="card"><h2 class="sec">👤 Staff (${users.length})</h2>
+      <div class="urow uhead"><div>Name</div><div>Team</div><div>Role</div><div class="uact">Actions</div></div>
+      <div id="uList"></div></div>`);
+    app.appendChild(uc);
+    const uList=uc.querySelector("#uList");
+    users.forEach(u=>{
+      const tOpts=S.teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?"selected":""}>${esc(t.name)}</option>`).join("");
+      const rOpts=["officer","team_lead","manager","admin"].map(r=>`<option value="${r}" ${r===u.role?"selected":""}>${roleName[r]}</option>`).join("");
+      const row=el(`<div class="urow${u.active?"":" inactive"}">
+        <div class="uname">${esc(u.name||u.username||("User "+u.id))}<span class="muted"> @${esc(u.username||"—")}</span>${u.active?"":' <span class="tag pending">terminated</span>'}</div>
+        <div><select data-f="team">${tOpts}</select></div>
+        <div><select data-f="role">${rOpts}</select></div>
+        <div class="uact">
+          <button class="iconbtn" data-save="${u.id}" title="Save team / role">💾</button>
+          <button class="iconbtn" data-pw="${u.id}" title="Reset password">🔑</button>
+          ${u.active
+            ? `<button class="iconbtn danger" data-term="${u.id}" title="Terminate (disable login)">🚫</button>`
+            : `<button class="iconbtn ok" data-react="${u.id}" title="Reactivate">↩️</button>`}
+        </div>
+      </div>`);
+      const saveU=(extra)=> sbRpc("app_save_user", Object.assign({
+        p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
+        p_user_id:u.id, p_name:u.name, p_username:u.username, p_password:"",
+        p_team_id: parseInt(row.querySelector("[data-f=team]").value,10),
+        p_role: row.querySelector("[data-f=role]").value,
+        p_active: u.active
+      }, extra||{}));
+      row.querySelector("[data-save]").onclick=async()=>{
+        const b=row.querySelector("[data-save]"); b.disabled=true;
+        try{ await saveU();
+          if(u.id===AUTH.user.id){ AUTH.user.role=row.querySelector("[data-f=role]").value; AUTH.user.team_id=parseInt(row.querySelector("[data-f=team]").value,10); ls("kpihub_session",JSON.stringify(AUTH.user)); }
+          b.textContent="✓"; setTimeout(()=>{b.textContent="💾";b.disabled=false;},1000);
+        }catch(e){ b.disabled=false; alert("Error: "+e.message); }
+      };
+      row.querySelector("[data-pw]").onclick=async()=>{
+        const np=prompt("New password for "+(u.name||u.username)+":"); if(!np) return;
+        try{ await saveU({p_password:np}); alert("Password updated for "+(u.name||u.username)+"."); }catch(e){ alert("Error: "+e.message); }
+      };
+      const tbtn=row.querySelector("[data-term]");
+      if(tbtn) tbtn.onclick=async()=>{ if(!(await askConfirm('Terminate "'+(u.name||u.username)+'"? They can no longer log in. Their records are kept and you can reactivate later.'))) return;
+        try{ await saveU({p_active:false}); await reloadTeams(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      const rbtn=row.querySelector("[data-react]");
+      if(rbtn) rbtn.onclick=async()=>{ try{ await saveU({p_active:true}); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      uList.appendChild(row);
+    });
+
+    // --- Support types (edit points / add / remove) ---
+    const sc=el(`<div class="card"><h2 class="sec">🎯 Support types</h2>
+      <div id="sList"></div>
+      <div class="row" style="align-items:flex-end;margin-top:12px">
+        <div style="flex:2"><label>New type name</label><input id="stName" placeholder="e.g. Callback"></div>
+        <div><label>Points</label><input type="number" id="stPts" value="1"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="stAdd">Add</button></div>
+      </div>
+    </div>`);
+    app.appendChild(sc);
+    const sList=sc.querySelector("#sList");
+    S.supports.forEach(s=>{
+      const row=el(`<div class="row" style="align-items:flex-end;margin:6px 0">
+        <div style="flex:2"><div>${esc(s.name)}</div></div>
+        <div><input type="number" value="${s.points}" data-pts="${s.id}"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" data-savep="${s.id}">Set</button></div>
+        <div style="flex:0 0 auto"><button class="btn danger sm" data-delp="${s.id}">Remove</button></div>
+      </div>`);
+      row.querySelector("[data-savep]").onclick=async()=>{
+        const v=parseInt(row.querySelector("[data-pts]").value,10)||0;
+        try{ await sbPatch("support_types","id=eq."+s.id,{points:v}); s.points=v;
+          const b=row.querySelector("[data-savep]"); b.textContent="✓"; setTimeout(()=>b.textContent="Set",1000);
+        }catch(e){ alert("Error: "+e.message); }
+      };
+      row.querySelector("[data-delp]").onclick=async()=>{
+        if(!(await askConfirm('Remove support type "'+s.name+'"?'))) return;
+        try{ await sbPatch("support_types","id=eq."+s.id,{active:false}); await reloadSupports(); renderAdmin(); }
+        catch(e){ alert("Error: "+e.message); }
+      };
+      sList.appendChild(row);
+    });
+    document.getElementById("stAdd").onclick=async()=>{
+      const name=document.getElementById("stName").value.trim();
+      const pts=parseInt(document.getElementById("stPts").value,10)||0;
+      if(!name) return;
+      try{ await sbInsert("support_types",{name:name,points:pts,active:true}); await reloadSupports(); renderAdmin(); }
+      catch(e){ alert("Error: "+e.message); }
+    };
+
+    // --- Services (add / remove) ---
+    const svcCard=el(`<div class="card"><h2 class="sec">🛠️ Services</h2><div id="svcList"></div>
+      <div class="row" style="align-items:flex-end;margin-top:12px">
+        <div style="flex:3"><label>New service</label><input id="svcNew" placeholder="e.g. Static QR"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="svcAdd">Add</button></div>
+      </div></div>`);
+    app.appendChild(svcCard);
+    const svcList=svcCard.querySelector("#svcList");
+    S.services.forEach(s=>{
+      const r=el(`<div class="row" style="margin:6px 0;align-items:center"><div style="flex:3">${esc(s.name)}</div>
+        <div style="flex:0 0 auto"><button class="btn danger sm" data-dels="${s.id}">Remove</button></div></div>`);
+      r.querySelector("[data-dels]").onclick=async()=>{ if(!(await askConfirm('Remove service "'+s.name+'"?'))) return;
+        try{ const x=await fetch(REST+"services?id=eq."+s.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadServices(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      svcList.appendChild(r);
+    });
+    document.getElementById("svcAdd").onclick=async()=>{ const v=document.getElementById("svcNew").value.trim(); if(!v) return;
+      try{ await sbInsert("services",{name:v}); await reloadServices(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+
+    // --- Categories (add / remove) ---
+    const catCard=el(`<div class="card"><h2 class="sec">🗂️ Categories</h2><div id="catList"></div>
+      <div class="row" style="align-items:flex-end;margin-top:12px">
+        <div style="flex:3"><label>New category</label><input id="catNew" placeholder="e.g. Request"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="catAdd">Add</button></div>
+      </div></div>`);
+    app.appendChild(catCard);
+    const catList=catCard.querySelector("#catList");
+    S.categories.forEach(c=>{
+      const r=el(`<div class="row" style="margin:6px 0;align-items:center"><div style="flex:3">${esc(c.name)}</div>
+        <div style="flex:0 0 auto"><button class="btn danger sm" data-delc="${c.id}">Remove</button></div></div>`);
+      r.querySelector("[data-delc]").onclick=async()=>{ if(!(await askConfirm('Remove category "'+c.name+'"?'))) return;
+        try{ const x=await fetch(REST+"categories?id=eq."+c.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); await reloadCategories(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+      catList.appendChild(r);
+    });
+    document.getElementById("catAdd").onclick=async()=>{ const v=document.getElementById("catNew").value.trim(); if(!v) return;
+      try{ await sbInsert("categories",{name:v}); await reloadCategories(); renderAdmin(); }catch(e){ alert("Error: "+e.message); } };
+
+    // --- Month setup (any month, auto working days) ---
+    const mkNow=monthKey(new Date());
+    const mcard=el(`<div class="card"><h2 class="sec">📅 Month setup</h2>
+      <div class="grid2">
+        <div><label>Month</label><input type="month" id="mcMonth" value="${mkNow}"></div>
+        <div><label>Public holidays (days)</label><input type="number" id="mcHol" min="0" value="0"></div>
+      </div>
+      <p class="muted" style="margin-top:12px">Working days (auto): <b id="mcWd" style="color:var(--accent);font-size:15px">—</b><span id="mcBreak"></span></p>
+      <div id="mcMsg"></div>
+      <button class="btn sec sm" id="mcSave" style="margin-top:8px">Save month</button>
+      <p class="muted" style="margin-top:6px">Working days = total days − weekends (Sat/Sun) − holidays.</p>
+    </div>`);
+    app.appendChild(mcard);
+    const mcRecompute=()=>{
+      const mk=document.getElementById("mcMonth").value;
+      const hol=parseInt(document.getElementById("mcHol").value,10)||0;
+      if(!mk){ document.getElementById("mcWd").textContent="—"; return; }
+      const dim=daysInMonth(mk), wk=weekendsInMonth(mk), wd=Math.max(0,dim-wk-hol);
+      document.getElementById("mcWd").textContent=wd;
+      document.getElementById("mcBreak").textContent=` (${dim} days − ${wk} weekend − ${hol} holiday)`;
+    };
+    const mcLoad=async()=>{
+      const mk=document.getElementById("mcMonth").value;
+      try{ const rows=await sbGet(`month_calendar?select=*&month=eq.${mk}`);
+        document.getElementById("mcHol").value = rows[0]? (rows[0].holidays||0) : 0; }catch(e){}
+      mcRecompute();
+    };
+    document.getElementById("mcMonth").onchange=mcLoad;
+    document.getElementById("mcHol").oninput=mcRecompute;
+    mcLoad();
+    document.getElementById("mcSave").onclick=async()=>{
+      const mk=document.getElementById("mcMonth").value; if(!mk) return;
+      const hol=parseInt(document.getElementById("mcHol").value,10)||0;
+      const wd=Math.max(0,daysInMonth(mk)-weekendsInMonth(mk)-hol);
+      try{
+        const ex=await sbGet(`month_calendar?select=month&month=eq.${mk}`);
+        if(ex.length) await sbPatch("month_calendar","month=eq."+mk,{working_days:wd,holidays:hol});
+        else await sbInsert("month_calendar",{month:mk,working_days:wd,holidays:hol});
+        const b=document.getElementById("mcSave"); b.textContent="Saved ✓"; setTimeout(()=>b.textContent="Save month",1200);
+      }catch(e){ document.getElementById("mcMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+    };
+
+    // --- Teams (rename / add / remove) ---
+    const tc=el(`<div class="card"><h2 class="sec">🏷️ Teams</h2>
+      <div id="tList"></div>
+      <div class="row" style="align-items:flex-end;margin-top:12px">
+        <div style="flex:3"><label>New team name</label><input id="tNew" placeholder="e.g. Risk Team"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="tAdd">Add team</button></div>
+      </div>
+    </div>`);
+    app.appendChild(tc);
+    const tList=tc.querySelector("#tList");
+    S.teams.forEach(t=>{
+      const row=el(`<div class="row" style="align-items:flex-end;margin:6px 0">
+        <div style="flex:3"><input value="${esc(t.name)}" data-tn="${t.id}"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" data-savet="${t.id}">Save</button></div>
+        <div style="flex:0 0 auto"><button class="btn danger sm" data-delt="${t.id}">Remove</button></div>
+      </div>`);
+      row.querySelector("[data-savet]").onclick=async()=>{
+        const v=row.querySelector("[data-tn]").value.trim(); if(!v) return;
+        try{ await sbPatch("teams","id=eq."+t.id,{name:v}); t.name=v;
+          const b=row.querySelector("[data-savet]"); b.textContent="✓"; setTimeout(()=>b.textContent="Save",1000);
+        }catch(e){ alert("Error: "+e.message); }
+      };
+      row.querySelector("[data-delt]").onclick=async()=>{
+        if(!(await askConfirm('Remove team "'+t.name+'"? Existing records stay, but the team is hidden.'))) return;
+        try{ await sbPatch("teams","id=eq."+t.id,{active:false}); await reloadTeams(); renderAdmin(); }
+        catch(e){ alert("Error: "+e.message); }
+      };
+      tList.appendChild(row);
+    });
+    document.getElementById("tAdd").onclick=async()=>{
+      const v=document.getElementById("tNew").value.trim(); if(!v) return;
+      const color=PALETTE[S.teams.length % PALETTE.length];
+      try{ await sbInsert("teams",{name:v,color:color,active:true}); await reloadTeams(); renderAdmin(); }
+      catch(e){ alert("Error: "+e.message); }
+    };
+
+  }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+}
+function renderAdminUnlock(){
+  app.innerHTML="";
+  const c=el(`<div class="card" style="max-width:360px;margin:20px auto">
+    <h2 class="sec">🔒 Confirm it's you</h2>
+    <p class="muted">Re-enter your password to manage staff.</p>
+    <div id="auMsg"></div>
+    <input id="au_pass" type="password" placeholder="your password">
+    <div style="height:10px"></div>
+    <button class="btn" id="au_go">Unlock Admin</button>
+  </div>`);
+  app.appendChild(c);
+  const go=async()=>{
+    const p=document.getElementById("au_pass").value;
+    try{
+      const rows=await sbRpc("app_login",{p_username:AUTH.user.username,p_password:p});
+      if(Array.isArray(rows)&&rows.length){ AUTH.pass=p; renderAdmin(); }
+      else document.getElementById("auMsg").innerHTML="<div class='notice err'>Wrong password.</div>";
+    }catch(e){ document.getElementById("auMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+  };
+  document.getElementById("au_go").onclick=go;
+  document.getElementById("au_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+}
+async function addStaff(){
+  const msg=document.getElementById("addMsg");
+  const name=document.getElementById("a_name").value.trim();
+  const user=document.getElementById("a_user").value.trim();
+  const pass=document.getElementById("a_pass").value;
+  if(!name||!user||!pass){ msg.innerHTML="<div class='notice err'>Name, username and password are required.</div>"; return; }
+  const btn=document.getElementById("a_save"); btn.disabled=true; btn.textContent="Creating…";
+  try{
+    await sbRpc("app_save_user",{
+      p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
+      p_user_id:null, p_name:name, p_username:user, p_password:pass,
+      p_team_id: parseInt(document.getElementById("a_team").value,10),
+      p_role: document.getElementById("a_role").value, p_active:true
+    });
+    renderAdmin();
+  }catch(e){
+    msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>";
+    btn.disabled=false; btn.textContent="Create staff";
+  }
+}
+
+async function bulkAdd(){
+  const msg=document.getElementById("bulkMsg");
+  const lines=document.getElementById("bulkText").value.split("\n").map(l=>l.trim()).filter(l=>l);
+  if(!lines.length){ msg.innerHTML="<div class='notice err'>Paste at least one line.</div>"; return; }
+  if(!AUTH.pass){ msg.innerHTML="<div class='notice err'>Re-open the Admin tab and confirm your password first.</div>"; return; }
+  const btn=document.getElementById("bulkGo"); btn.disabled=true; btn.textContent="Creating…";
+  const genPass=()=>"Kpi"+Math.random().toString(36).slice(2,7);
+  const findTeam=(v)=>{ v=(v||"").trim(); if(!v) return null;
+    const bn=S.teams.find(t=>t.name.toLowerCase()===v.toLowerCase()); if(bn) return bn.id;
+    const n=parseInt(v,10); if(!isNaN(n)&&S.teams[n-1]) return S.teams[n-1].id; return null; };
+  const roles=["officer","team_lead","manager","admin"];
+  const results=[]; let ok=0;
+  for(const line of lines){
+    const c=line.split(",").map(x=>x.trim());
+    const name=c[0], user=c[1]; let pass=(c[2]||""); if(!pass) pass=genPass();
+    const team=findTeam(c[3]); const role=roles.includes((c[4]||"").toLowerCase())?c[4].toLowerCase():"officer";
+    if(!name||!user){ results.push({line,ok:false,err:"missing name or username"}); continue; }
+    try{
+      await sbRpc("app_save_user",{p_admin_user:AUTH.user.username,p_admin_pass:AUTH.pass,p_user_id:null,
+        p_name:name,p_username:user,p_password:pass,p_team_id:team,p_role:role,p_active:true});
+      results.push({name,user,pass,ok:true}); ok++;
+    }catch(e){ results.push({line,ok:false,err:(e.message||"error")}); }
+  }
+  const rows=results.map(r=> r.ok
+    ? `<tr><td>${esc(r.name)}</td><td><code>${esc(r.user)}</code></td><td><code>${esc(r.pass)}</code></td><td>✅</td></tr>`
+    : `<tr><td colspan="3">${esc(r.line)} <span class="muted">(${esc(r.err)})</span></td><td>❌</td></tr>`).join("");
+  msg.innerHTML=`<div class="notice ok">Created ${ok} of ${results.length}. Copy the usernames &amp; passwords below to give to staff.</div>`
+    +`<table><thead><tr><th>Name</th><th>Username</th><th>Password</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById("bulkText").value="";
+  btn.disabled=false; btn.textContent="Create all";
+}
+
+boot();
+</script>
+</body>
+</html>
