@@ -268,6 +268,14 @@
   .pfav{width:92px;height:92px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;overflow:hidden;flex:0 0 auto;box-shadow:var(--shadow)}
   .pfav img{width:100%;height:100%;object-fit:cover}
   .pfavwrap .btn.sm{margin-right:6px}
+  /* ===== Forgot-password flow ===== */
+  .card a{color:var(--accent);cursor:pointer;font-weight:600;text-decoration:none}
+  .card a:hover{text-decoration:underline}
+  .fphd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .fphd .iconbtn{width:32px;height:32px;min-width:32px;font-size:18px}
+  .otpwrap{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .otpin{width:46px;height:54px;text-align:center;font-size:22px;font-weight:700;padding:0}
+  .okcircle{width:66px;height:66px;border-radius:50%;background:var(--grad);color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;margin:4px auto 0;box-shadow:0 8px 22px rgba(59,130,246,.4)}
   .etable th,.etable td{padding:12px 10px;vertical-align:middle}
   .etable td.rem{color:var(--muted);max-width:240px}
   .etable .nowrap{white-space:nowrap}
@@ -410,12 +418,101 @@ function renderLogin(msg){
       <input id="li_pass" type="password" autocomplete="current-password" placeholder="your password">
       <div style="height:12px"></div>
       <button class="btn" id="li_go">Sign in</button>
+      <p class="muted" style="text-align:center;margin-top:12px"><a id="li_forgot">Forgot password?</a></p>
     </div>
   </div>`);
   app.appendChild(box);
   const go=()=>doLogin();
   document.getElementById("li_go").onclick=go;
   document.getElementById("li_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  document.getElementById("li_forgot").onclick=()=>renderForgot();
+}
+function fnEdge(path, body){
+  return fetch(SUPABASE_URL+"/functions/v1/"+path, {method:"POST", headers:{"Authorization":"Bearer "+SUPABASE_KEY,"apikey":SUPABASE_KEY,"Content-Type":"application/json"}, body:JSON.stringify(body||{})})
+    .then(async function(r){ const t=await r.text(); let j={}; try{ j=JSON.parse(t); }catch(e){ j={ok:false,error:(t||("HTTP "+r.status))}; } return j; })
+    .catch(function(e){ return {ok:false,error:(e&&e.message)||"Network error"}; });
+}
+function renderForgot(){
+  const st={ user:"", masked:"", code:"" };
+  function msg(t){ const m=document.getElementById("fpMsg"); if(m) m.innerHTML=t?("<div class='notice err'>"+esc(t)+"</div>"):""; }
+  function msgOk(t){ const m=document.getElementById("fpMsg"); if(m) m.innerHTML="<div class='notice ok'>"+esc(t)+"</div>"; }
+  function shell(o){
+    document.body.classList.add("auth"); nav.classList.add("hide"); document.getElementById("who").innerHTML="";
+    app.innerHTML="";
+    const box=el("<div class='login-box'><div class='brand'><div class='big'>"+LOGO+"<span>KPI&nbsp;Hub</span></div></div>"
+      +"<div class='card'><div class='fphd'><button class='iconbtn' id='fpBack' title='Back'>←</button><h2 class='sec' style='margin:0'>"+esc(o.title)+"</h2></div>"
+      +"<p class='muted' style='margin:0 0 12px'>"+esc(o.sub)+"</p><div id='fpMsg'></div>"+o.html+"</div></div>");
+    app.appendChild(box);
+    document.getElementById("fpBack").onclick=o.onBack||function(){renderLogin();};
+    if(o.wire) o.wire();
+  }
+  function stepUser(){
+    shell({ title:"Forgot password", sub:"Please enter your User ID to reset the password.",
+      html:"<label>User ID</label><input id='fp_user' autocapitalize='off' placeholder='Enter your User ID' value='"+esc(st.user)+"'><div style='height:12px'></div><button class='btn' id='fp_go'>Reset Password</button>",
+      onBack:function(){renderLogin();},
+      wire:function(){
+        const go=async function(){
+          const v=document.getElementById("fp_user").value.trim();
+          if(!v){ msg("Please enter your User ID."); return; }
+          st.user=v; const b=document.getElementById("fp_go"); b.disabled=true; b.textContent="Sending…";
+          const r=await fnEdge("send-reset-otp",{username:v});
+          if(r && r.ok){ st.masked=r.masked||""; stepOtp(); }
+          else { msg((r&&r.error)||"Could not send the code. Please try again."); b.disabled=false; b.textContent="Reset Password"; }
+        };
+        document.getElementById("fp_go").onclick=go;
+        document.getElementById("fp_user").addEventListener("keydown",function(e){if(e.key==="Enter")go();});
+        document.getElementById("fp_user").focus();
+      } });
+  }
+  function stepOtp(){
+    shell({ title:"Enter OTP", sub:"Please enter the OTP sent to your registered email"+(st.masked?(" "+st.masked):"")+".",
+      html:"<div class='otpwrap' id='fp_otp'>"+[0,1,2,3,4,5].map(function(i){return "<input class='otpin' maxlength='1' inputmode='numeric' data-i='"+i+"'>";}).join("")+"</div><div style='height:14px'></div><button class='btn' id='fp_verify'>Verify Code</button><p class='muted' style='text-align:center;margin-top:12px'>Haven't got the OTP yet? <a id='fp_resend'>Resend OTP</a></p>",
+      onBack:function(){stepUser();},
+      wire:function(){
+        const ins=Array.prototype.slice.call(document.querySelectorAll("#fp_otp .otpin"));
+        const code=function(){ return ins.map(function(i){return i.value;}).join(""); };
+        const verify=async function(){
+          const c=code(); if(c.length<6){ msg("Enter the 6-digit code."); return; }
+          const b=document.getElementById("fp_verify"); b.disabled=true; b.textContent="Verifying…";
+          const r=await sbRpc("app_verify_reset",{p_username:st.user,p_code:c});
+          if(r&&r.ok){ st.code=c; stepPass(); } else { msg((r&&r.error)||"Incorrect code."); b.disabled=false; b.textContent="Verify Code"; }
+        };
+        ins.forEach(function(inp,idx){
+          inp.addEventListener("input",function(){ inp.value=inp.value.replace(/\D/g,""); if(inp.value&&idx<5) ins[idx+1].focus(); });
+          inp.addEventListener("keydown",function(e){ if(e.key==="Backspace"&&!inp.value&&idx>0) ins[idx-1].focus(); if(e.key==="Enter") verify(); });
+        });
+        ins[0].addEventListener("paste",function(e){ const d=((e.clipboardData||window.clipboardData).getData("text")||"").replace(/\D/g,"").slice(0,6); if(d){ e.preventDefault(); d.split("").forEach(function(ch,i){ if(ins[i]) ins[i].value=ch; }); ins[Math.min(d.length,5)].focus(); } });
+        ins[0].focus();
+        document.getElementById("fp_verify").onclick=verify;
+        document.getElementById("fp_resend").onclick=async function(){ msg(""); const r=await fnEdge("send-reset-otp",{username:st.user}); if(r&&r.ok){ st.masked=r.masked||st.masked; msgOk("A new code has been sent."); } else { msg((r&&r.error)||"Could not resend."); } };
+      } });
+  }
+  function stepPass(){
+    shell({ title:"Set a new password", sub:"Create a new password. Ensure it differs from previous ones for security.",
+      html:"<label>Password</label><input id='fp_p1' type='password' placeholder='Enter your new password'><label>Confirm Password</label><input id='fp_p2' type='password' placeholder='Re-enter password'><div style='height:12px'></div><button class='btn' id='fp_upd'>Update Password</button>",
+      onBack:function(){stepOtp();},
+      wire:function(){
+        const upd=async function(){
+          const p1=document.getElementById("fp_p1").value, p2=document.getElementById("fp_p2").value;
+          if(p1.length<6){ msg("Password must be at least 6 characters."); return; }
+          if(p1!==p2){ msg("Passwords do not match."); return; }
+          const b=document.getElementById("fp_upd"); b.disabled=true; b.textContent="Updating…";
+          const r=await sbRpc("app_reset_password",{p_username:st.user,p_code:st.code,p_newpass:p1});
+          if(r&&r.ok){ stepDone(); } else { msg((r&&r.error)||"Could not update password."); b.disabled=false; b.textContent="Update Password"; }
+        };
+        document.getElementById("fp_upd").onclick=upd;
+        document.getElementById("fp_p2").addEventListener("keydown",function(e){if(e.key==="Enter")upd();});
+        document.getElementById("fp_p1").focus();
+      } });
+  }
+  function stepDone(){
+    document.body.classList.add("auth"); nav.classList.add("hide"); document.getElementById("who").innerHTML="";
+    app.innerHTML="";
+    const box=el("<div class='login-box'><div class='card' style='text-align:center'><div class='okcircle'>✓</div><h2 class='sec' style='margin:14px 0 6px'>Successful</h2><p class='muted'>Your password has been successfully updated. Click Continue to sign in.</p><div style='height:14px'></div><button class='btn' id='fp_cont'>Continue</button></div></div>");
+    app.appendChild(box);
+    document.getElementById("fp_cont").onclick=function(){renderLogin();};
+  }
+  stepUser();
 }
 async function doLogin(){
   const u=document.getElementById("li_user").value.trim();
