@@ -259,6 +259,15 @@
   .subnav button .ic{font-size:14px}
   .subnav button:hover{border-color:var(--accent);color:var(--accent)}
   .subnav button.active{background:var(--grad);border-color:transparent;color:#fff;box-shadow:var(--shadow)}
+  /* ===== Profile + header avatar ===== */
+  .whorow{display:flex;align-items:center;gap:9px;justify-content:flex-end}
+  .whotxt{text-align:right}
+  .whoav{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+  .whoav.whoavi{background:var(--grad);color:#fff;font-size:13px;font-weight:800}
+  .pfavwrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .pfav{width:92px;height:92px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;overflow:hidden;flex:0 0 auto;box-shadow:var(--shadow)}
+  .pfav img{width:100%;height:100%;object-fit:cover}
+  .pfavwrap .btn.sm{margin-right:6px}
   .etable th,.etable td{padding:12px 10px;vertical-align:middle}
   .etable td.rem{color:var(--muted);max-width:240px}
   .etable .nowrap{white-space:nowrap}
@@ -281,6 +290,7 @@
     <button data-tab="mine" id="navMine"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></span>My Entries</button>
     <button data-tab="summary" id="navSummary"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M15 7h5v5"/></svg></span>Summary</button>
     <button data-tab="dashboard" id="navDashboard"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/></svg></span>Dashboard</button>
+    <button data-tab="profile" id="navProfile"><span class="ic"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Profile</button>
     <button data-tab="admin" id="navAdmin"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Admin</button>
   </nav>
   <div id="app"><div class="center"><span class="spin"></span><div>Loading…</div></div></div>
@@ -430,6 +440,18 @@ function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); re
 /* ============================================================
    START APP (after login)
    ============================================================ */
+function initials(n){ n=(n||"").trim(); if(!n) return "?"; const p=n.split(/\s+/); const s=((p[0]||"")[0]||"")+(p.length>1?((p[p.length-1][0])||""):""); return (s||n[0]||"?").toUpperCase(); }
+function renderWho(){
+  const u=AUTH.user; if(!u) return;
+  const av=u.avatar;
+  const avHtml = av ? "<img class='whoav' src='"+av+"'>" : "<span class='whoav whoavi'>"+esc(initials(u.name||u.username))+"</span>";
+  document.getElementById("who").innerHTML =
+    "<div class='whorow'>"+avHtml+"<span class='whotxt'>"+esc(u.name||u.username)+"<br>"+
+    "<span class='badge'>"+roleName[u.role]+"</span> "+
+    "<span class='muted'>"+esc(teamName(u.team_id))+"</span> · "+
+    "<a id='logoutLink'>Log out</a></span></div>";
+  document.getElementById("logoutLink").onclick=logout;
+}
 function startApp(){
   applyNavMode();
   document.body.classList.remove("auth");
@@ -438,12 +460,11 @@ function startApp(){
   document.getElementById("navDashboard").classList.toggle("hide", !["manager","admin"].includes(r));
   document.getElementById("navSummary").classList.toggle("hide", !["team_lead","manager","admin"].includes(r));
   document.getElementById("navAdmin").classList.toggle("hide", r!=="admin");
-  document.getElementById("who").innerHTML =
-    esc(AUTH.user.name||AUTH.user.username)+"<br>"+
-    "<span class='badge'>"+roleName[AUTH.user.role]+"</span> "+
-    "<span class='muted'>"+esc(teamName(AUTH.user.team_id))+"</span> · "+
-    "<a id='logoutLink'>Log out</a>";
-  document.getElementById("logoutLink").onclick=logout;
+  renderWho();
+  sbGet("users?id=eq."+AUTH.user.id+"&select=avatar,job_position,contact,email").then(function(a){
+    if(a&&a[0]){ AUTH.user.avatar=a[0].avatar; AUTH.user.email=a[0].email; AUTH.user.job_position=a[0].job_position; AUTH.user.contact=a[0].contact;
+      try{ ls("kpihub_session",JSON.stringify(AUTH.user)); }catch(e){} renderWho(); }
+  }).catch(function(){});
   nav.querySelectorAll("button").forEach(b=>b.onclick=()=>show(b.dataset.tab));
   show("log");
 }
@@ -455,6 +476,80 @@ function show(tab){
   else if(tab==="dashboard") renderDashboard();
   else if(tab==="summary") renderSummary();
   else if(tab==="admin") renderAdmin();
+  else if(tab==="profile") renderProfile();
+}
+
+/* ============================================================
+   PROFILE
+   ============================================================ */
+function resizeImage(file, max, cb){
+  try{
+    const r=new FileReader();
+    r.onload=function(){ const img=new Image(); img.onload=function(){
+      let w=img.width,h=img.height; const sc=Math.min(1, max/Math.max(w,h)); w=Math.max(1,Math.round(w*sc)); h=Math.max(1,Math.round(h*sc));
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(img,0,0,w,h);
+      try{ cb(cv.toDataURL("image/jpeg",0.82)); }catch(e){ alert("Could not process that image."); } };
+      img.onerror=function(){ alert("That file is not a valid image."); }; img.src=r.result; };
+    r.readAsDataURL(file);
+  }catch(e){ alert("Could not read the file."); }
+}
+async function renderProfile(){
+  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+  try{
+    const rows = await sbGet("users?id=eq."+AUTH.user.id+"&select=name,job_position,contact,email,avatar");
+    const u = rows[0]||{};
+    AUTH.user.avatar = u.avatar||null; renderWho();
+    let avatarData = u.avatar || "";
+    const c = el(`<div class="card">
+      <h2 class="sec">👤 My Profile</h2>
+      <div id="pfMsg"></div>
+      <div class="pfavwrap">
+        <div class="pfav" id="pfAv"></div>
+        <div>
+          <button class="btn sec sm" id="pfPick" type="button">Change photo</button>
+          <button class="btn danger sm" id="pfRemove" type="button" style="${avatarData?'':'display:none'}">Remove</button>
+          <input type="file" id="pfFile" accept="image/*" style="display:none">
+          <p class="muted" style="margin:6px 0 0">JPG or PNG · a square photo looks best.</p>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div><label>Full name</label><input id="pf_name" value="${esc(u.name||AUTH.user.name||'')}"></div>
+        <div><label>Position</label><input id="pf_pos" value="${esc(u.job_position||'')}" placeholder="e.g. Officer"></div>
+        <div><label>Contact</label><input id="pf_contact" value="${esc(u.contact||'')}" placeholder="phone number"></div>
+        <div><label>Email <span class="muted">(used for password reset)</span></label><input id="pf_email" value="${esc(u.email||'')}" placeholder="name@example.com" autocapitalize="off"></div>
+      </div>
+      <div style="margin-top:10px"><label>Confirm your password to save</label><input type="password" id="pf_pass" placeholder="your current password"></div>
+      <div style="height:12px"></div>
+      <button class="btn" id="pfSave">Save profile</button>
+      <p class="muted" style="margin-top:10px">Signed in as <b>${esc(AUTH.user.username)}</b> · ${esc(roleName[AUTH.user.role]||AUTH.user.role||"")}</p>
+    </div>`);
+    app.innerHTML=""; app.appendChild(c);
+    const pfAv=c.querySelector("#pfAv");
+    const paint=function(){ if(avatarData){ pfAv.innerHTML="<img src='"+avatarData+"'>"; } else { pfAv.textContent=initials(document.getElementById("pf_name").value||AUTH.user.username); } };
+    paint();
+    const fileInput=c.querySelector("#pfFile");
+    c.querySelector("#pfPick").onclick=function(){ fileInput.click(); };
+    fileInput.onchange=function(){ const f=fileInput.files&&fileInput.files[0]; if(!f) return; resizeImage(f,256,function(d){ avatarData=d; paint(); c.querySelector("#pfRemove").style.display=""; }); };
+    c.querySelector("#pfRemove").onclick=function(){ avatarData=""; paint(); this.style.display="none"; };
+    c.querySelector("#pfSave").onclick=async function(){
+      const msg=document.getElementById("pfMsg");
+      const pass=document.getElementById("pf_pass").value;
+      if(!pass){ msg.innerHTML="<div class='notice err'>Enter your password to save.</div>"; return; }
+      const em=document.getElementById("pf_email").value.trim();
+      if(em && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){ msg.innerHTML="<div class='notice err'>Please enter a valid email.</div>"; return; }
+      const btn=document.getElementById("pfSave"); btn.disabled=true; btn.textContent="Saving…";
+      try{
+        const res=await sbRpc("app_update_profile",{p_user_id:AUTH.user.id,p_password:pass,p_name:document.getElementById("pf_name").value,p_position:document.getElementById("pf_pos").value,p_contact:document.getElementById("pf_contact").value,p_email:em,p_avatar:avatarData});
+        if(!res || res.ok!==true){ throw new Error((res&&res.error)||"Could not save profile"); }
+        AUTH.user.name=(document.getElementById("pf_name").value.trim())||AUTH.user.name;
+        AUTH.user.avatar=avatarData||null; AUTH.user.email=em||null;
+        try{ ls("kpihub_session",JSON.stringify(AUTH.user)); }catch(e){} renderWho();
+        document.getElementById("pf_pass").value="";
+        msg.innerHTML="<div class='notice ok'>✅ Profile saved.</div>";
+        btn.disabled=false; btn.textContent="Save profile";
+      }catch(e){ msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; btn.disabled=false; btn.textContent="Save profile"; }
+    };
+  }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
 
 /* ============================================================
