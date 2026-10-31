@@ -447,13 +447,13 @@ function renderForgot(){
     if(o.wire) o.wire();
   }
   function stepUser(){
-    shell({ title:"Forgot password", sub:"Please enter your User ID to reset the password.",
-      html:"<label>User ID</label><input id='fp_user' autocapitalize='off' placeholder='Enter your User ID' value='"+esc(st.user)+"'><div style='height:12px'></div><button class='btn' id='fp_go'>Reset Password</button>",
+    shell({ title:"Forgot password", sub:"Please enter your username to reset your password.",
+      html:"<label>Username</label><input id='fp_user' autocapitalize='off' placeholder='Enter your username' value='"+esc(st.user)+"'><p class='muted' style='margin:6px 0 0'>The same username you use to sign in.</p><div style='height:12px'></div><button class='btn' id='fp_go'>Reset Password</button>",
       onBack:function(){renderLogin();},
       wire:function(){
         const go=async function(){
           const v=document.getElementById("fp_user").value.trim();
-          if(!v){ msg("Please enter your User ID."); return; }
+          if(!v){ msg("Please enter your username."); return; }
           st.user=v; const b=document.getElementById("fp_go"); b.disabled=true; b.textContent="Sending…";
           const r=await fnEdge("send-reset-otp",{username:v});
           if(r && r.ok){ st.masked=r.masked||""; stepOtp(); }
