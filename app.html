@@ -259,6 +259,23 @@
   .subnav button .ic{font-size:14px}
   .subnav button:hover{border-color:var(--accent);color:var(--accent)}
   .subnav button.active{background:var(--grad);border-color:transparent;color:#fff;box-shadow:var(--shadow)}
+  /* ===== Profile + header avatar ===== */
+  .whorow{display:flex;align-items:center;gap:9px;justify-content:flex-end}
+  .whotxt{text-align:right}
+  .whoav{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+  .whoav.whoavi{background:var(--grad);color:#fff;font-size:13px;font-weight:800}
+  .pfavwrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .pfav{width:92px;height:92px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;overflow:hidden;flex:0 0 auto;box-shadow:var(--shadow)}
+  .pfav img{width:100%;height:100%;object-fit:cover}
+  .pfavwrap .btn.sm{margin-right:6px}
+  /* ===== Forgot-password flow ===== */
+  .card a{color:var(--accent);cursor:pointer;font-weight:600;text-decoration:none}
+  .card a:hover{text-decoration:underline}
+  .fphd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .fphd .iconbtn{width:32px;height:32px;min-width:32px;font-size:18px}
+  .otpwrap{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .otpin{width:46px;height:54px;text-align:center;font-size:22px;font-weight:700;padding:0}
+  .okcircle{width:66px;height:66px;border-radius:50%;background:var(--grad);color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;margin:4px auto 0;box-shadow:0 8px 22px rgba(59,130,246,.4)}
   .etable th,.etable td{padding:12px 10px;vertical-align:middle}
   .etable td.rem{color:var(--muted);max-width:240px}
   .etable .nowrap{white-space:nowrap}
@@ -281,6 +298,7 @@
     <button data-tab="mine" id="navMine"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></span>My Entries</button>
     <button data-tab="summary" id="navSummary"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M15 7h5v5"/></svg></span>Summary</button>
     <button data-tab="dashboard" id="navDashboard"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/></svg></span>Dashboard</button>
+    <button data-tab="profile" id="navProfile"><span class="ic"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Profile</button>
     <button data-tab="admin" id="navAdmin"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Admin</button>
   </nav>
   <div id="app"><div class="center"><span class="spin"></span><div>Loading…</div></div></div>
@@ -400,12 +418,102 @@ function renderLogin(msg){
       <input id="li_pass" type="password" autocomplete="current-password" placeholder="your password">
       <div style="height:12px"></div>
       <button class="btn" id="li_go">Sign in</button>
+      <p class="muted" style="text-align:center;margin-top:12px"><a id="li_forgot">Forgot password?</a></p>
     </div>
   </div>`);
   app.appendChild(box);
   const go=()=>doLogin();
   document.getElementById("li_go").onclick=go;
   document.getElementById("li_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  document.getElementById("li_forgot").onclick=()=>renderForgot();
+}
+function fnEdge(path, body){
+  return fetch(SUPABASE_URL+"/functions/v1/"+path, {method:"POST", headers:{"Authorization":"Bearer "+SUPABASE_KEY,"apikey":SUPABASE_KEY,"Content-Type":"application/json"}, body:JSON.stringify(body||{})})
+    .then(async function(r){ const t=await r.text(); let j={}; try{ j=JSON.parse(t); }catch(e){ j={ok:false,error:(t||("HTTP "+r.status))}; } return j; })
+    .catch(function(e){ return {ok:false,error:(e&&e.message)||"Network error"}; });
+}
+function renderForgot(){
+  const st={ user:"", masked:"", code:"" };
+  function msg(t){ const m=document.getElementById("fpMsg"); if(m) m.innerHTML=t?("<div class='notice err'>"+esc(t)+"</div>"):""; }
+  function msgOk(t){ const m=document.getElementById("fpMsg"); if(m) m.innerHTML="<div class='notice ok'>"+esc(t)+"</div>"; }
+  function shell(o){
+    document.body.classList.add("auth"); nav.classList.add("hide"); document.getElementById("who").innerHTML="";
+    app.innerHTML="";
+    const box=el("<div class='login-box'><div class='brand'><div class='big'>"+LOGO+"<span>KPI&nbsp;Hub</span></div></div>"
+      +"<div class='card'><div class='fphd'><button class='iconbtn' id='fpBack' title='Back'>←</button><h2 class='sec' style='margin:0'>"+esc(o.title)+"</h2></div>"
+      +"<p class='muted' style='margin:0 0 12px'>"+esc(o.sub)+"</p><div id='fpMsg'></div>"+o.html+"</div></div>");
+    app.appendChild(box);
+    document.getElementById("fpBack").onclick=o.onBack||function(){renderLogin();};
+    if(o.wire) o.wire();
+  }
+  function stepUser(){
+    shell({ title:"Forgot password", sub:"Please enter your username to reset your password.",
+      html:"<label>Username</label><input id='fp_user' autocapitalize='off' placeholder='Enter your username' value='"+esc(st.user)+"'><p class='muted' style='margin:6px 0 0'>The same username you use to sign in.</p><div style='height:12px'></div><button class='btn' id='fp_go'>Reset Password</button>",
+      onBack:function(){renderLogin();},
+      wire:function(){
+        const go=async function(){
+          const v=document.getElementById("fp_user").value.trim();
+          if(!v){ msg("Please enter your username."); return; }
+          st.user=v; const b=document.getElementById("fp_go"); b.disabled=true; b.textContent="Sending…";
+          const r=await fnEdge("send-reset-otp",{username:v});
+          if(r && r.ok && r.sent){ st.masked=r.masked||""; stepOtp(); }
+          else if(r && r.ok && !r.sent){ msg("That username doesn't exist, or has no email set. Please check it and try again, or ask your admin."); b.disabled=false; b.textContent="Reset Password"; }
+          else { msg((r&&r.error)||"Could not send the code. Please try again."); b.disabled=false; b.textContent="Reset Password"; }
+        };
+        document.getElementById("fp_go").onclick=go;
+        document.getElementById("fp_user").addEventListener("keydown",function(e){if(e.key==="Enter")go();});
+        document.getElementById("fp_user").focus();
+      } });
+  }
+  function stepOtp(){
+    shell({ title:"Enter OTP", sub:"Please enter the OTP sent to your registered email"+(st.masked?(" "+st.masked):"")+".",
+      html:"<div class='otpwrap' id='fp_otp'>"+[0,1,2,3,4,5].map(function(i){return "<input class='otpin' maxlength='1' inputmode='numeric' data-i='"+i+"'>";}).join("")+"</div><div style='height:14px'></div><button class='btn' id='fp_verify'>Verify Code</button><p class='muted' style='text-align:center;margin-top:12px'>Haven't got the OTP yet? <a id='fp_resend'>Resend OTP</a></p>",
+      onBack:function(){stepUser();},
+      wire:function(){
+        const ins=Array.prototype.slice.call(document.querySelectorAll("#fp_otp .otpin"));
+        const code=function(){ return ins.map(function(i){return i.value;}).join(""); };
+        const verify=async function(){
+          const c=code(); if(c.length<6){ msg("Enter the 6-digit code."); return; }
+          const b=document.getElementById("fp_verify"); b.disabled=true; b.textContent="Verifying…";
+          const r=await sbRpc("app_verify_reset",{p_username:st.user,p_code:c});
+          if(r&&r.ok){ st.code=c; stepPass(); } else { msg((r&&r.error)||"Incorrect code."); b.disabled=false; b.textContent="Verify Code"; }
+        };
+        ins.forEach(function(inp,idx){
+          inp.addEventListener("input",function(){ inp.value=inp.value.replace(/\D/g,""); if(inp.value&&idx<5) ins[idx+1].focus(); });
+          inp.addEventListener("keydown",function(e){ if(e.key==="Backspace"&&!inp.value&&idx>0) ins[idx-1].focus(); if(e.key==="Enter") verify(); });
+        });
+        ins[0].addEventListener("paste",function(e){ const d=((e.clipboardData||window.clipboardData).getData("text")||"").replace(/\D/g,"").slice(0,6); if(d){ e.preventDefault(); d.split("").forEach(function(ch,i){ if(ins[i]) ins[i].value=ch; }); ins[Math.min(d.length,5)].focus(); } });
+        ins[0].focus();
+        document.getElementById("fp_verify").onclick=verify;
+        document.getElementById("fp_resend").onclick=async function(){ msg(""); const r=await fnEdge("send-reset-otp",{username:st.user}); if(r&&r.ok){ st.masked=r.masked||st.masked; msgOk("A new code has been sent."); } else { msg((r&&r.error)||"Could not resend."); } };
+      } });
+  }
+  function stepPass(){
+    shell({ title:"Set a new password", sub:"Create a new password. Ensure it differs from previous ones for security.",
+      html:"<label>Password</label><input id='fp_p1' type='password' placeholder='Enter your new password'><label>Confirm Password</label><input id='fp_p2' type='password' placeholder='Re-enter password'><div style='height:12px'></div><button class='btn' id='fp_upd'>Update Password</button>",
+      onBack:function(){stepOtp();},
+      wire:function(){
+        const upd=async function(){
+          const p1=document.getElementById("fp_p1").value, p2=document.getElementById("fp_p2").value;
+          if(p1.length<6){ msg("Password must be at least 6 characters."); return; }
+          if(p1!==p2){ msg("Passwords do not match."); return; }
+          const b=document.getElementById("fp_upd"); b.disabled=true; b.textContent="Updating…";
+          const r=await sbRpc("app_reset_password",{p_username:st.user,p_code:st.code,p_newpass:p1});
+          if(r&&r.ok){ stepDone(); } else { msg((r&&r.error)||"Could not update password."); b.disabled=false; b.textContent="Update Password"; }
+        };
+        document.getElementById("fp_upd").onclick=upd;
+        document.getElementById("fp_p2").addEventListener("keydown",function(e){if(e.key==="Enter")upd();});
+        document.getElementById("fp_p1").focus();
+      } });
+  }
+  function stepDone(){
+    document.body.classList.add("auth"); nav.classList.add("hide"); document.getElementById("who").innerHTML="";
+    app.innerHTML="";
+    const box=el("<div class='login-box'><div class='card' style='text-align:center'><div class='okcircle'>✓</div><h2 class='sec' style='margin:14px 0 6px'>Successful</h2><p class='muted'>Your password has been successfully updated. Click Continue to sign in.</p><div style='height:14px'></div><button class='btn' id='fp_cont'>Continue</button></div></div>");
+    app.appendChild(box);
+    document.getElementById("fp_cont").onclick=function(){renderLogin();};
+  }
+  stepUser();
 }
 async function doLogin(){
   const u=document.getElementById("li_user").value.trim();
@@ -430,6 +538,18 @@ function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); re
 /* ============================================================
    START APP (after login)
    ============================================================ */
+function initials(n){ n=(n||"").trim(); if(!n) return "?"; const p=n.split(/\s+/); const s=((p[0]||"")[0]||"")+(p.length>1?((p[p.length-1][0])||""):""); return (s||n[0]||"?").toUpperCase(); }
+function renderWho(){
+  const u=AUTH.user; if(!u) return;
+  const av=u.avatar;
+  const avHtml = av ? "<img class='whoav' src='"+av+"'>" : "<span class='whoav whoavi'>"+esc(initials(u.name||u.username))+"</span>";
+  document.getElementById("who").innerHTML =
+    "<div class='whorow'>"+avHtml+"<span class='whotxt'>"+esc(u.name||u.username)+"<br>"+
+    "<span class='badge'>"+roleName[u.role]+"</span> "+
+    "<span class='muted'>"+esc(teamName(u.team_id))+"</span> · "+
+    "<a id='logoutLink'>Log out</a></span></div>";
+  document.getElementById("logoutLink").onclick=logout;
+}
 function startApp(){
   applyNavMode();
   document.body.classList.remove("auth");
@@ -438,12 +558,11 @@ function startApp(){
   document.getElementById("navDashboard").classList.toggle("hide", !["manager","admin"].includes(r));
   document.getElementById("navSummary").classList.toggle("hide", !["team_lead","manager","admin"].includes(r));
   document.getElementById("navAdmin").classList.toggle("hide", r!=="admin");
-  document.getElementById("who").innerHTML =
-    esc(AUTH.user.name||AUTH.user.username)+"<br>"+
-    "<span class='badge'>"+roleName[AUTH.user.role]+"</span> "+
-    "<span class='muted'>"+esc(teamName(AUTH.user.team_id))+"</span> · "+
-    "<a id='logoutLink'>Log out</a>";
-  document.getElementById("logoutLink").onclick=logout;
+  renderWho();
+  sbGet("users?id=eq."+AUTH.user.id+"&select=avatar,job_position,contact,email").then(function(a){
+    if(a&&a[0]){ AUTH.user.avatar=a[0].avatar; AUTH.user.email=a[0].email; AUTH.user.job_position=a[0].job_position; AUTH.user.contact=a[0].contact;
+      try{ ls("kpihub_session",JSON.stringify(AUTH.user)); }catch(e){} renderWho(); }
+  }).catch(function(){});
   nav.querySelectorAll("button").forEach(b=>b.onclick=()=>show(b.dataset.tab));
   show("log");
 }
@@ -455,6 +574,80 @@ function show(tab){
   else if(tab==="dashboard") renderDashboard();
   else if(tab==="summary") renderSummary();
   else if(tab==="admin") renderAdmin();
+  else if(tab==="profile") renderProfile();
+}
+
+/* ============================================================
+   PROFILE
+   ============================================================ */
+function resizeImage(file, max, cb){
+  try{
+    const r=new FileReader();
+    r.onload=function(){ const img=new Image(); img.onload=function(){
+      let w=img.width,h=img.height; const sc=Math.min(1, max/Math.max(w,h)); w=Math.max(1,Math.round(w*sc)); h=Math.max(1,Math.round(h*sc));
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(img,0,0,w,h);
+      try{ cb(cv.toDataURL("image/jpeg",0.82)); }catch(e){ alert("Could not process that image."); } };
+      img.onerror=function(){ alert("That file is not a valid image."); }; img.src=r.result; };
+    r.readAsDataURL(file);
+  }catch(e){ alert("Could not read the file."); }
+}
+async function renderProfile(){
+  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+  try{
+    const rows = await sbGet("users?id=eq."+AUTH.user.id+"&select=name,job_position,contact,email,avatar");
+    const u = rows[0]||{};
+    AUTH.user.avatar = u.avatar||null; renderWho();
+    let avatarData = u.avatar || "";
+    const c = el(`<div class="card">
+      <h2 class="sec">👤 My Profile</h2>
+      <div id="pfMsg"></div>
+      <div class="pfavwrap">
+        <div class="pfav" id="pfAv"></div>
+        <div>
+          <button class="btn sec sm" id="pfPick" type="button">Change photo</button>
+          <button class="btn danger sm" id="pfRemove" type="button" style="${avatarData?'':'display:none'}">Remove</button>
+          <input type="file" id="pfFile" accept="image/*" style="display:none">
+          <p class="muted" style="margin:6px 0 0">JPG or PNG · a square photo looks best.</p>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div><label>Full name</label><input id="pf_name" value="${esc(u.name||AUTH.user.name||'')}"></div>
+        <div><label>Position</label><input id="pf_pos" value="${esc(u.job_position||'')}" placeholder="e.g. Officer"></div>
+        <div><label>Contact</label><input id="pf_contact" value="${esc(u.contact||'')}" placeholder="phone number"></div>
+        <div><label>Email <span class="muted">(used for password reset)</span></label><input id="pf_email" value="${esc(u.email||'')}" placeholder="name@example.com" autocapitalize="off"></div>
+      </div>
+      <div style="margin-top:10px"><label>Confirm your password to save</label><input type="password" id="pf_pass" placeholder="your current password"></div>
+      <div style="height:12px"></div>
+      <button class="btn" id="pfSave">Save profile</button>
+      <p class="muted" style="margin-top:10px">Signed in as <b>${esc(AUTH.user.username)}</b> · ${esc(roleName[AUTH.user.role]||AUTH.user.role||"")}</p>
+    </div>`);
+    app.innerHTML=""; app.appendChild(c);
+    const pfAv=c.querySelector("#pfAv");
+    const paint=function(){ if(avatarData){ pfAv.innerHTML="<img src='"+avatarData+"'>"; } else { pfAv.textContent=initials(document.getElementById("pf_name").value||AUTH.user.username); } };
+    paint();
+    const fileInput=c.querySelector("#pfFile");
+    c.querySelector("#pfPick").onclick=function(){ fileInput.click(); };
+    fileInput.onchange=function(){ const f=fileInput.files&&fileInput.files[0]; if(!f) return; resizeImage(f,256,function(d){ avatarData=d; paint(); c.querySelector("#pfRemove").style.display=""; }); };
+    c.querySelector("#pfRemove").onclick=function(){ avatarData=""; paint(); this.style.display="none"; };
+    c.querySelector("#pfSave").onclick=async function(){
+      const msg=document.getElementById("pfMsg");
+      const pass=document.getElementById("pf_pass").value;
+      if(!pass){ msg.innerHTML="<div class='notice err'>Enter your password to save.</div>"; return; }
+      const em=document.getElementById("pf_email").value.trim();
+      if(em && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){ msg.innerHTML="<div class='notice err'>Please enter a valid email.</div>"; return; }
+      const btn=document.getElementById("pfSave"); btn.disabled=true; btn.textContent="Saving…";
+      try{
+        const res=await sbRpc("app_update_profile",{p_user_id:AUTH.user.id,p_password:pass,p_name:document.getElementById("pf_name").value,p_position:document.getElementById("pf_pos").value,p_contact:document.getElementById("pf_contact").value,p_email:em,p_avatar:avatarData});
+        if(!res || res.ok!==true){ throw new Error((res&&res.error)||"Could not save profile"); }
+        AUTH.user.name=(document.getElementById("pf_name").value.trim())||AUTH.user.name;
+        AUTH.user.avatar=avatarData||null; AUTH.user.email=em||null;
+        try{ ls("kpihub_session",JSON.stringify(AUTH.user)); }catch(e){} renderWho();
+        document.getElementById("pf_pass").value="";
+        msg.innerHTML="<div class='notice ok'>✅ Profile saved.</div>";
+        btn.disabled=false; btn.textContent="Save profile";
+      }catch(e){ msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; btn.disabled=false; btn.textContent="Save profile"; }
+    };
+  }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
 
 /* ============================================================

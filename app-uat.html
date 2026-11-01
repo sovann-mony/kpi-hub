@@ -456,7 +456,8 @@ function renderForgot(){
           if(!v){ msg("Please enter your username."); return; }
           st.user=v; const b=document.getElementById("fp_go"); b.disabled=true; b.textContent="Sending…";
           const r=await fnEdge("send-reset-otp",{username:v});
-          if(r && r.ok){ st.masked=r.masked||""; stepOtp(); }
+          if(r && r.ok && r.sent){ st.masked=r.masked||""; stepOtp(); }
+          else if(r && r.ok && !r.sent){ msg("That username doesn't exist, or has no email set. Please check it and try again, or ask your admin."); b.disabled=false; b.textContent="Reset Password"; }
           else { msg((r&&r.error)||"Could not send the code. Please try again."); b.disabled=false; b.textContent="Reset Password"; }
         };
         document.getElementById("fp_go").onclick=go;
