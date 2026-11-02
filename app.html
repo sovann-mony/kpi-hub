@@ -258,6 +258,15 @@
   .df:focus-within .df-txt{border-color:var(--accent);box-shadow:var(--ring)}
   .df.df-locked{opacity:.55}
   .df.df-locked .df-txt{cursor:not-allowed;background:var(--chip)}
+  .combo{position:relative}
+  .combo-input{width:100%;padding-right:30px}
+  .combo-caret{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px;pointer-events:none}
+  .combo-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);max-height:220px;overflow:auto;display:none}
+  .combo-list.open{display:block}
+  .combo-opt{padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)}
+  .combo-opt:last-child{border-bottom:none}
+  .combo-opt:hover,.combo-opt.active{background:var(--chip);color:var(--accent)}
+  .combo-empty{padding:10px 12px;color:var(--muted);font-size:13px}
   /* ===== Admin sub-tabs ===== */
   .subnav{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
   .subnav button{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
@@ -677,9 +686,6 @@ async function renderProfile(){
    LOG TASK
    ============================================================ */
 function renderLog(){
-  const stOpts = '<option value="">—</option>' + S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
-  const svcOpts = '<option value="">—</option>' + S.services.map(s=>`<option>${esc(s.name)}</option>`).join("");
-  const catOpts = '<option value="">—</option>' + S.categories.map(c=>`<option>${esc(c.name)}</option>`).join("");
   app.innerHTML="";
   const noTeam = !AUTH.user.team_id;
   const c = el(`<div class="card">
@@ -689,9 +695,9 @@ function renderLog(){
       <div><label>Start date</label>${dfield("f_start","")}</div>
       <div><label>Merchant name</label><input id="f_merchant" placeholder="e.g. ABC Shop"></div>
       <div><label>Contact</label><input id="f_contact" placeholder="phone number / email"></div>
-      <div><label>Service</label><select id="f_service">${svcOpts}</select></div>
-      <div><label>Category</label><select id="f_category">${catOpts}</select></div>
-      <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label><select id="f_support">${stOpts}</select></div>
+      <div><label>Service</label>${comboField("f_service","Type or pick a service")}</div>
+      <div><label>Category</label>${comboField("f_category","Type or pick a category")}</div>
+      <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label>${comboField("f_support","Type or pick a support type")}</div>
       <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
       <div><label>Resolved date</label>${dfield("f_resolved","")}</div>
       <div class="span2"><label>Remark</label><textarea id="f_remark" placeholder="optional notes"></textarea></div>
@@ -702,9 +708,10 @@ function renderLog(){
   </div>`);
   app.appendChild(c);
   wireDF(c);
-  const sel=document.getElementById("f_support"), hint=document.getElementById("ptsHint");
-  const updPts=()=>{const o=sel.selectedOptions[0];hint.textContent=(o&&o.dataset.pts)?("= "+o.dataset.pts+" points"):"";};
-  sel.onchange=updPts; updPts();
+  const hint=document.getElementById("ptsHint");
+  wireCombo(c, "f_service", S.services.map(s=>({value:s.name,label:s.name})));
+  wireCombo(c, "f_category", S.categories.map(x=>({value:x.name,label:x.name})));
+  wireCombo(c, "f_support", S.supports.map(s=>({value:String(s.id),label:s.name+" ("+s.points+" pts)",points:s.points})), function(it){ hint.textContent = it ? ("= "+it.points+" points") : ""; });
   wireStatusResolved(c, "f_status", "f_resolved");
   document.getElementById("saveEntry").onclick=saveEntry;
 }
@@ -904,9 +911,6 @@ async function renderMine(mk, silent){
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
 function editEntry(r){
-  const svcOpts='<option value="">—</option>'+S.services.map(s=>`<option${s.name===r.service?" selected":""}>${esc(s.name)}</option>`).join("");
-  const catOpts='<option value="">—</option>'+S.categories.map(c=>`<option${c.name===r.category?" selected":""}>${esc(c.name)}</option>`).join("");
-  const stOpts=S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}"${s.id===r.support_type_id?" selected":""}>${esc(s.name)} (${s.points} pts)</option>`).join("");
   const statList=(r.status==="Done")?["Done"]:["Pending","In Progress","Done"];
   const statOpts=statList.map(s=>`<option${s===r.status?" selected":""}>${s}</option>`).join("");
   const m=el(`<div class="modal"><div class="box">
@@ -916,9 +920,9 @@ function editEntry(r){
       <div><label>Start date</label>${dfield("ed_start",(r.start_date||"").slice(0,10))}</div>
       <div><label>Task / merchant</label><input id="ed_merchant" value="${esc(r.merchant_name||"")}"></div>
       <div><label>Contact</label><input id="ed_contact" value="${esc(r.contact||"")}"></div>
-      <div><label>Service</label><select id="ed_service">${svcOpts}</select></div>
-      <div><label>Category</label><select id="ed_category">${catOpts}</select></div>
-      <div><label>Support type</label><select id="ed_support">${stOpts}</select></div>
+      <div><label>Service</label>${comboField("ed_service","Type or pick a service")}</div>
+      <div><label>Category</label>${comboField("ed_category","Type or pick a category")}</div>
+      <div><label>Support type</label>${comboField("ed_support","Type or pick a support type")}</div>
       <div><label>Status</label><select id="ed_status">${statOpts}</select></div>
       <div><label>Resolved date</label>${dfield("ed_resolved",(r.resolved_date||"").slice(0,10))}</div>
       <div class="span2"><label>Remark</label><textarea id="ed_remark">${esc(r.remark||"")}</textarea></div>
@@ -931,6 +935,9 @@ function editEntry(r){
   document.body.appendChild(m);
   wireDF(m);
   wireStatusResolved(m, "ed_status", "ed_resolved");
+  wireCombo(m, "ed_service", S.services.map(s=>({value:s.name,label:s.name})), null, r.service||"");
+  wireCombo(m, "ed_category", S.categories.map(x=>({value:x.name,label:x.name})), null, r.category||"");
+  wireCombo(m, "ed_support", S.supports.map(s=>({value:String(s.id),label:s.name+" ("+s.points+" pts)",points:s.points})), null, (r.support_type_id!=null?String(r.support_type_id):""));
   const close=()=>m.remove();
   m.querySelector("#edX").onclick=close;
   m.querySelector("#edCancel").onclick=close;
@@ -1019,6 +1026,56 @@ function wireStatusResolved(root, statusId, dateId){
   var sx=(root||document).querySelector('#'+statusId); if(!sx) return;
   var apply=function(){ setResolvedLock(root, dateId, sx.value==='Done'); };
   sx.addEventListener('change', apply); apply();
+}
+/* Type-to-search combobox: filter a list by typing, pick a real item only. */
+function comboField(id, placeholder){
+  return '<div class="combo" id="'+id+'_c">'
+    +'<input type="text" class="combo-input" id="'+id+'_txt" autocomplete="off" placeholder="'+esc(placeholder||'Type to search…')+'">'
+    +'<span class="combo-caret">▾</span>'
+    +'<input type="hidden" id="'+id+'">'
+    +'<div class="combo-list" id="'+id+'_list"></div></div>';
+}
+function wireCombo(root, id, items, onSelect, initialValue){
+  var wrap=(root||document).querySelector('#'+id+'_c'); if(!wrap) return;
+  var txt=wrap.querySelector('#'+id+'_txt'), hid=wrap.querySelector('#'+id), list=wrap.querySelector('#'+id+'_list');
+  var active=-1, shown=[];
+  function render(q){
+    q=(q||'').trim().toLowerCase();
+    shown=items.filter(function(it){ return !q || it.label.toLowerCase().indexOf(q)>=0; });
+    list.innerHTML = shown.length ? shown.map(function(it,i){ return '<div class="combo-opt" data-i="'+i+'">'+esc(it.label)+'</div>'; }).join('') : '<div class="combo-empty">No match</div>';
+    active=-1;
+    list.querySelectorAll('.combo-opt').forEach(function(o){
+      o.addEventListener('mousedown', function(e){ e.preventDefault(); pick(shown[parseInt(o.getAttribute('data-i'),10)]); });
+    });
+  }
+  function openAll(){ render(''); list.classList.add('open'); }
+  function openFiltered(){ render(txt.value); list.classList.add('open'); }
+  function close(){ list.classList.remove('open'); }
+  function pick(it){ if(!it) return; hid.value=it.value; txt.value=it.label; close(); if(onSelect) onSelect(it); }
+  function setActive(opts){ opts.forEach(function(o,i){ o.classList.toggle('active', i===active); }); if(opts[active]) opts[active].scrollIntoView({block:'nearest'}); }
+  function resolveOnBlur(){
+    var v=txt.value.trim().toLowerCase();
+    if(!v){ hid.value=''; if(onSelect) onSelect(null); return; }
+    var exact=items.find(function(it){ return it.label.toLowerCase()===v; });
+    if(exact){ pick(exact); return; }
+    var filt=items.filter(function(it){ return it.label.toLowerCase().indexOf(v)>=0; });
+    if(filt.length===1){ pick(filt[0]); return; }
+    hid.value=''; txt.value=''; if(onSelect) onSelect(null);
+  }
+  txt.addEventListener('focus', openAll);
+  txt.addEventListener('input', function(){ hid.value=''; openFiltered(); });
+  txt.addEventListener('blur', function(){ setTimeout(function(){ close(); resolveOnBlur(); }, 150); });
+  txt.addEventListener('keydown', function(e){
+    var opts=list.querySelectorAll('.combo-opt');
+    if(e.key==='ArrowDown'){ e.preventDefault(); if(!list.classList.contains('open')){ openFiltered(); opts=list.querySelectorAll('.combo-opt'); } active=Math.min(opts.length-1,active+1); setActive(opts); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); active=Math.max(0,active-1); setActive(opts); }
+    else if(e.key==='Enter'){ if(list.classList.contains('open') && active>=0 && shown[active]){ e.preventDefault(); pick(shown[active]); } }
+    else if(e.key==='Escape'){ close(); }
+  });
+  if(initialValue!=null && initialValue!==''){
+    var init=items.find(function(it){ return String(it.value)===String(initialValue); });
+    if(init){ hid.value=init.value; txt.value=init.label; if(onSelect) onSelect(init); }
+  }
 }
 function askConfirm(msg){ return new Promise(res=>{ try{ if(tg && tg.showConfirm){ tg.showConfirm(msg, ok=>res(!!ok)); return; } }catch(e){} res(window.confirm(msg)); }); }
 async function renderSummary(){
