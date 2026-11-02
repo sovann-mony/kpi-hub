@@ -234,6 +234,9 @@
   .statsel.done{background:#dcfce7;color:#166534;border-color:#bbf7d0}
   .statsel.pending{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
   .statsel.progress{background:#fef3c7;color:#92400e;border-color:#fde68a}
+  span.statsel{display:inline-flex;align-items:center;justify-content:center;cursor:default;text-align:center}
+  #mineFilterRow th{padding:4px 6px}
+  #mineFilterRow input.fsearch{width:100%;padding:6px 8px;font-size:12px;font-weight:500;border-radius:8px}
   @media (max-width:579px){ .erow{grid-template-columns:1fr auto} .erow .edate{display:none} }
 
   /* ===== My performance bar ===== */
@@ -817,16 +820,50 @@ async function renderMine(mk, silent){
         <span class="muted">${rows.length} in ${esc(mLabel)} · set to Done to complete (Done is final)</span>
       </div>
       <div style="overflow-x:auto;margin-top:8px"><table class="etable">
-        <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th class="nowrap">Resolved</th><th>Status</th><th></th></tr></thead>
+        <thead>
+          <tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th class="nowrap">Resolved</th><th>Status</th><th style="text-align:right"><button class="iconbtn" id="mineSearchBtn" title="Search entries">🔍</button></th></tr>
+          <tr id="mineFilterRow" class="hide">
+            <th><input class="fsearch" data-col="0" placeholder="Search"></th>
+            <th><input class="fsearch" data-col="1" placeholder="Search"></th>
+            <th><input class="fsearch" data-col="2" placeholder="Search"></th>
+            <th><input class="fsearch" data-col="3" placeholder="Search"></th>
+            <th><input class="fsearch" data-col="4" placeholder="Search"></th>
+            <th><input class="fsearch" data-col="5" placeholder="Search"></th>
+            <th><input class="fsearch" data-col="6" placeholder="Search"></th>
+            <th style="text-align:right"><button class="iconbtn" id="mineFilterClear" title="Clear search">✕</button></th>
+          </tr>
+        </thead>
         <tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
+    (function(){
+      const searchBtn=listCard.querySelector("#mineSearchBtn");
+      const filterRow=listCard.querySelector("#mineFilterRow");
+      if(!filterRow) return;
+      const applyMineFilter=function(){
+        const fs=[];
+        filterRow.querySelectorAll("input.fsearch").forEach(function(i){ const v=i.value.trim().toLowerCase(); if(v) fs.push([i.getAttribute("data-col"), v]); });
+        list.querySelectorAll("tr").forEach(function(tr){
+          let show=true;
+          for(const f of fs){ if((tr.getAttribute("data-s"+f[0])||"").indexOf(f[1])<0){ show=false; break; } }
+          tr.style.display = show?"":"none";
+        });
+      };
+      if(searchBtn) searchBtn.onclick=function(){
+        filterRow.classList.toggle("hide");
+        if(!filterRow.classList.contains("hide")){ const f=filterRow.querySelector("input"); if(f) f.focus(); }
+        else { filterRow.querySelectorAll("input").forEach(function(i){ i.value=""; }); applyMineFilter(); }
+      };
+      filterRow.querySelectorAll("input.fsearch").forEach(function(i){ i.oninput=applyMineFilter; });
+      const clr=listCard.querySelector("#mineFilterClear");
+      if(clr) clr.onclick=function(){ filterRow.querySelectorAll("input").forEach(function(i){ i.value=""; }); applyMineFilter(); };
+    })();
     if(!rows.length){ list.innerHTML="<tr><td colspan='8' class='center'>No entries for "+esc(mLabel)+".</td></tr>"; return; }
     let rowsHtml="";
     rows.forEach(r=>{
       const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
       const sup = r.support_types?r.support_types.name:"";
-      rowsHtml += `<tr>`
+      rowsHtml += `<tr data-s0="${esc(String(fmtDate(r.start_date)).toLowerCase())}" data-s1="${esc(String(r.merchant_name||"").toLowerCase())}" data-s2="${esc(String(r.contact||"").toLowerCase())}" data-s3="${esc(String(sup||"").toLowerCase())}" data-s4="${esc(String(r.remark||"").toLowerCase())}" data-s5="${esc(String(fmtDate(r.resolved_date)).toLowerCase())}" data-s6="${esc(String(r.status||"").toLowerCase())}">`
         + `<td class="nowrap">${esc(fmtDate(r.start_date))}</td>`
         + `<td><b>${esc(r.merchant_name||"—")}</b></td>`
         + `<td>${esc(r.contact||"N/A")}</td>`
