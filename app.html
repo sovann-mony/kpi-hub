@@ -338,6 +338,13 @@ async function sbRpc(fn, args){
   if(!r.ok) throw new Error((await r.text()) || ("RPC "+fn+" "+r.status));
   return r.json();
 }
+/* app_login works with BOTH the old DB (returns an array of rows) and the new
+   DB (returns {ok,user,reason,remaining}). This keeps login working during the
+   switch-over so there is no outage. */
+function normLogin(res){
+  if(Array.isArray(res)) return res.length ? {ok:true, user:res[0]} : {ok:false};
+  return res || {ok:false};
+}
 
 /* ---- Telegram (theme/expand only; auth is username/password) ---- */
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -372,7 +379,14 @@ function teamName(id){const t=S.teams.find(t=>t.id===id);return t?t.name:"—";}
 function teamColor(id){const t=S.teams.find(t=>t.id===id);return t?t.color:"#9ca3af";}
 function canSeeSummary(){return AUTH.user && ["team_lead","manager","admin"].includes(AUTH.user.role);}
 function isAdmin(){return AUTH.user && AUTH.user.role==="admin";}
-function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+/* only allow uploaded photos (data:image/...) as avatar sources */
+function safeImg(v){ v=(v==null?"":String(v)); return /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+\/=]+$/.test(v)?v:""; }
+/* dates in LOCAL time (Cambodia UTC+7) — never toISOString(), which is UTC */
+function pad2(n){ return (n<10?"0":"")+n; }
+function localISO(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function todayISO(){ return localISO(new Date()); }
+function nextMonthStart(mk){ const p=mk.split("-").map(Number); return localISO(new Date(p[0],p[1],1)); }
 function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){return null;} }
 
 /* set nav layout responsive to width */
@@ -521,13 +535,17 @@ async function doLogin(){
   if(!u||!p){ renderLogin("Enter username and password."); return; }
   const btn=document.getElementById("li_go"); btn.disabled=true; btn.textContent="Signing in…";
   try{
-    const rows = await sbRpc("app_login",{p_username:u,p_password:p});
-    if(Array.isArray(rows) && rows.length){
-      AUTH.user = rows[0]; AUTH.pass = p;
+    const res = normLogin(await sbRpc("app_login",{p_username:u,p_password:p}));
+    if(res && res.ok && res.user){
+      AUTH.user = res.user; AUTH.pass = p;
       ls("kpihub_session", JSON.stringify(AUTH.user));
       startApp();
+    }else if(res && res.reason==="locked"){
+      renderLogin("This account is locked after 3 failed attempts. Please reset your password using \"Forgot password?\" below.");
     }else{
-      renderLogin("Wrong username or password.");
+      let m="Wrong username or password.";
+      if(res && typeof res.remaining==="number" && res.remaining>0){ m+=" "+res.remaining+" attempt"+(res.remaining===1?"":"s")+" left before the account locks."; }
+      renderLogin(m);
     }
   }catch(e){
     renderLogin("Login error: "+e.message);
@@ -541,8 +559,8 @@ function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); re
 function initials(n){ n=(n||"").trim(); if(!n) return "?"; const p=n.split(/\s+/); const s=((p[0]||"")[0]||"")+(p.length>1?((p[p.length-1][0])||""):""); return (s||n[0]||"?").toUpperCase(); }
 function renderWho(){
   const u=AUTH.user; if(!u) return;
-  const av=u.avatar;
-  const avHtml = av ? "<img class='whoav' src='"+av+"'>" : "<span class='whoav whoavi'>"+esc(initials(u.name||u.username))+"</span>";
+  const av=safeImg(u.avatar);
+  const avHtml = av ? "<img class='whoav' src='"+esc(av)+"'>" : "<span class='whoav whoavi'>"+esc(initials(u.name||u.username))+"</span>";
   document.getElementById("who").innerHTML =
     "<div class='whorow'>"+avHtml+"<span class='whotxt'>"+esc(u.name||u.username)+"<br>"+
     "<span class='badge'>"+roleName[u.role]+"</span> "+
@@ -597,7 +615,7 @@ async function renderProfile(){
     const rows = await sbGet("users?id=eq."+AUTH.user.id+"&select=name,job_position,contact,email,avatar");
     const u = rows[0]||{};
     AUTH.user.avatar = u.avatar||null; renderWho();
-    let avatarData = u.avatar || "";
+    let avatarData = safeImg(u.avatar);
     const c = el(`<div class="card">
       <h2 class="sec">👤 My Profile</h2>
       <div id="pfMsg"></div>
@@ -623,7 +641,7 @@ async function renderProfile(){
     </div>`);
     app.innerHTML=""; app.appendChild(c);
     const pfAv=c.querySelector("#pfAv");
-    const paint=function(){ if(avatarData){ pfAv.innerHTML="<img src='"+avatarData+"'>"; } else { pfAv.textContent=initials(document.getElementById("pf_name").value||AUTH.user.username); } };
+    const paint=function(){ if(safeImg(avatarData)){ pfAv.innerHTML="<img src='"+esc(safeImg(avatarData))+"'>"; } else { pfAv.textContent=initials(document.getElementById("pf_name").value||AUTH.user.username); } };
     paint();
     const fileInput=c.querySelector("#pfFile");
     c.querySelector("#pfPick").onclick=function(){ fileInput.click(); };
@@ -654,7 +672,6 @@ async function renderProfile(){
    LOG TASK
    ============================================================ */
 function renderLog(){
-  const today = new Date().toISOString().slice(0,10);
   const stOpts = '<option value="">—</option>' + S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}">${esc(s.name)} (${s.points} pts)</option>`).join("");
   const svcOpts = '<option value="">—</option>' + S.services.map(s=>`<option>${esc(s.name)}</option>`).join("");
   const catOpts = '<option value="">—</option>' + S.categories.map(c=>`<option>${esc(c.name)}</option>`).join("");
@@ -729,7 +746,7 @@ async function renderMine(mk, silent){
   if(!silent) app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
     const parts=curMk.split("-"); const y=+parts[0], m=+parts[1];
-    const from=`${curMk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
+    const from=`${curMk}-01`, to=nextMonthStart(curMk);
     const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&start_date=gte."+from+"&start_date=lt."+to+"&select=*,support_types(name)&order=start_date.desc,created_at.desc&limit=500");
     const myPts=rows.reduce((a,e)=>a+(e.points||0),0);
     const cal=(await sbGet(`month_calendar?select=working_days&month=eq.${curMk}`))[0];
@@ -824,7 +841,7 @@ async function renderMine(mk, silent){
       sel.onchange=async()=>{
         const next=sel.value;
         if(next==="Done"){
-          const def=(r.resolved_date? String(r.resolved_date).slice(0,10) : new Date().toISOString().slice(0,10));
+          const def=(r.resolved_date? String(r.resolved_date).slice(0,10) : todayISO());
           const rd=await askResolvedDate(def);
           if(!rd){ sel.value=r.status; return; }   // cancelled → keep previous status
           try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd}); r.status="Done"; r.resolved_date=rd; renderMine(curMk, true); }
@@ -930,7 +947,7 @@ function askResolvedDate(defDate){
 /* ============================================================
    SUMMARY
    ============================================================ */
-function monthKey(d){return d.toISOString().slice(0,7);}
+function monthKey(d){return localISO(d).slice(0,7);}
 function daysInMonth(mk){ const p=mk.split("-").map(Number); return new Date(p[0],p[1],0).getDate(); }
 function weekendsInMonth(mk){ const p=mk.split("-").map(Number); const dim=new Date(p[0],p[1],0).getDate(); let w=0; for(let d=1;d<=dim;d++){ const dow=new Date(p[0],p[1]-1,d).getDay(); if(dow===0||dow===6) w++; } return w; }
 const PALETTE=["#2563eb","#16a34a","#db2777","#d97706","#7c3aed","#0891b2","#dc2626","#0d9488","#c026d3","#ca8a04"];
@@ -955,7 +972,7 @@ async function renderSummary(){
   try{
     const [y,m]=mk.split("-").map(Number);
     const from = `${mk}-01`;
-    const to = new Date(y, m, 1).toISOString().slice(0,10);
+    const to = nextMonthStart(mk);
     const entries = await sbGet(`entries?select=team_id,points,start_date&start_date=gte.${from}&start_date=lt.${to}&limit=5000`);
     const users   = await sbGet("users?select=team_id,active&active=eq.true");
     const cal     = await sbGet(`month_calendar?select=*&month=eq.${mk}`);
@@ -992,7 +1009,7 @@ async function renderSummary(){
       const actual=actualBy[t.id]||0;
       let target=null;
       if(calRow){
-        const staffDays=(calRow.working_days-calRow.holidays)*staff-(leaveBy[t.id]||0);
+        const staffDays=calRow.working_days*staff-(leaveBy[t.id]||0);   // working_days already excludes holidays
         target=Math.max(0, Math.round(daily*Math.max(0,staffDays)));
       }
       let flag="";
@@ -1026,7 +1043,7 @@ async function renderDashboard(){
   S._dmonth = mk;
   try{
     const [y,m]=mk.split("-").map(Number);
-    const from=`${mk}-01`, to=new Date(y,m,1).toISOString().slice(0,10);
+    const from=`${mk}-01`, to=nextMonthStart(mk);
     const entries=await sbGet(`entries?select=team_id,points,status,staff_name,staff_user_id&start_date=gte.${from}&start_date=lt.${to}&limit=10000`);
     const users=await sbGet("users?select=team_id,active&active=eq.true");
     const cal=(await sbGet(`month_calendar?select=*&month=eq.${mk}`))[0];
@@ -1041,7 +1058,7 @@ async function renderDashboard(){
     const stc={Pending:0,"In Progress":0,Done:0};
     entries.forEach(e=>{ if(stc[e.status]!=null) stc[e.status]++; });
     let tgtTotal=0; const hasTarget=!!cal;
-    S.teams.forEach(t=>{ if(cal){ const sd=(cal.working_days-cal.holidays)*(staffBy[t.id]||0)-(leaveBy[t.id]||0); tgtTotal+=Math.max(0,Math.round(daily*Math.max(0,sd))); } });
+    S.teams.forEach(t=>{ if(cal){ const sd=cal.working_days*(staffBy[t.id]||0)-(leaveBy[t.id]||0); tgtTotal+=Math.max(0,Math.round(daily*Math.max(0,sd))); } });
     const pct = hasTarget && tgtTotal>0 ? Math.round(totalPoints/tgtTotal*100) : null;
     const byStaff={};
     entries.forEach(e=>{ const k=(e.staff_user_id!=null?("u"+e.staff_user_id):("n"+(e.staff_name||""))); if(!byStaff[k]) byStaff[k]={name:e.staff_name||"—",pts:0,tasks:0}; byStaff[k].pts+=(e.points||0); byStaff[k].tasks++; });
@@ -1358,11 +1375,28 @@ function renderAdminUnlock(){
   app.appendChild(c);
   const go=async()=>{
     const p=document.getElementById("au_pass").value;
+    const msg=document.getElementById("auMsg");
+    if(!p){ msg.innerHTML="<div class='notice err'>Enter your password.</div>"; return; }
+    const b=document.getElementById("au_go"); b.disabled=true; b.textContent="Checking…";
     try{
-      const rows=await sbRpc("app_login",{p_username:AUTH.user.username,p_password:p});
-      if(Array.isArray(rows)&&rows.length){ AUTH.pass=p; renderAdmin(); }
-      else document.getElementById("auMsg").innerHTML="<div class='notice err'>Wrong password.</div>";
-    }catch(e){ document.getElementById("auMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+      const res=normLogin(await sbRpc("app_login",{p_username:AUTH.user.username,p_password:p}));
+      if(res && res.ok && res.user){
+        AUTH.pass=p;
+        AUTH.user=Object.assign({},AUTH.user,res.user);           // refresh role/team from the server
+        ls("kpihub_session",JSON.stringify(AUTH.user));
+        if(AUTH.user.role!=="admin"){ startApp(); return; }      // no longer admin → back to normal app
+        renderAdmin(); return;
+      }
+      if(res && res.reason==="locked"){
+        logout();
+        renderLogin("This account is locked after 3 failed attempts. Please reset your password using \"Forgot password?\" below.");
+        return;
+      }
+      let m="Wrong password.";
+      if(res && typeof res.remaining==="number" && res.remaining>0){ m+=" "+res.remaining+" attempt"+(res.remaining===1?"":"s")+" left before the account locks."; }
+      msg.innerHTML="<div class='notice err'>"+esc(m)+"</div>";
+    }catch(e){ msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+    b.disabled=false; b.textContent="Unlock Admin";
   };
   document.getElementById("au_go").onclick=go;
   document.getElementById("au_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
