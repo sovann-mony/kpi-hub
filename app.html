@@ -384,7 +384,7 @@ applyTheme(currentTheme());
 
 /* ---- state ---- */
 const AUTH = { user:null, pass:null };               // pass kept in memory only
-const S = { teams:[], supports:[], services:[], categories:[], settings:{}, tab:"log", _month:null };
+const S = { teams:[], units:[], supports:[], services:[], categories:[], settings:{}, tab:"log", _month:null };
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 const el = (h)=>{const d=document.createElement("div");d.innerHTML=h;return d.firstElementChild;};
@@ -414,6 +414,7 @@ async function boot(){
   try{ document.getElementById("brandH").innerHTML = LOGO + '<span>KPI&nbsp;Hub</span>'; }catch(e){}
   try{
     S.teams    = await sbGet("teams?select=*&active=eq.true&order=id");
+    S.units    = await sbGet("units?select=*&active=eq.true&order=id");
     S.supports = await sbGet("support_types?select=*&active=eq.true&order=points.desc");
     S.services = await sbGet("services?select=*&order=id");
     S.categories = await sbGet("categories?select=*&order=id");
@@ -1002,6 +1003,7 @@ function daysInMonth(mk){ const p=mk.split("-").map(Number); return new Date(p[0
 function weekendsInMonth(mk){ const p=mk.split("-").map(Number); const dim=new Date(p[0],p[1],0).getDate(); let w=0; for(let d=1;d<=dim;d++){ const dow=new Date(p[0],p[1]-1,d).getDay(); if(dow===0||dow===6) w++; } return w; }
 const PALETTE=["#2563eb","#16a34a","#db2777","#d97706","#7c3aed","#0891b2","#dc2626","#0d9488","#c026d3","#ca8a04"];
 async function reloadTeams(){ S.teams = await sbGet("teams?select=*&active=eq.true&order=id"); }
+async function reloadUnits(){ S.units = await sbGet("units?select=*&active=eq.true&order=id"); }
 async function reloadSupports(){ S.supports = await sbGet("support_types?select=*&active=eq.true&order=points.desc"); }
 async function reloadServices(){ S.services = await sbGet("services?select=*&order=id"); }
 async function reloadCategories(){ S.categories = await sbGet("categories?select=*&order=id"); }
@@ -1440,29 +1442,75 @@ async function adTarget(host){
     };
 }
 async function adUnits(host){
-    const tc=el(`<div class="card"><h2 class="sec">🏢 Units & Teams</h2>
-      <div id="tList"></div>
+    // ===== Units =====
+    const uc=el(`<div class="card"><h2 class="sec">🏢 Units</h2>
+      <p class="muted" style="margin:2px 0 8px">Top level — each team belongs to a unit.</p>
+      <div id="uList"></div>
       <div class="row" style="align-items:flex-end;margin-top:12px">
-        <div style="flex:3"><label>New unit name</label><input id="tNew" placeholder="e.g. Risk Unit"></div>
-        <div style="flex:0 0 auto"><button class="btn sec sm" id="tAdd">Add unit</button></div>
+        <div style="flex:3"><label>New unit name</label><input id="uNew" placeholder="e.g. Risk Unit"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="uAdd">Add unit</button></div>
+      </div>
+    </div>`);
+    host.appendChild(uc);
+    const uList=uc.querySelector("#uList");
+    if(!S.units.length) uList.innerHTML="<p class='muted'>No units yet. Add one below.</p>";
+    S.units.forEach(u=>{
+      const row=el(`<div class="row" style="align-items:flex-end;margin:6px 0">
+        <div style="flex:3"><input value="${esc(u.name)}" data-un="${u.id}"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" data-saveu="${u.id}">Save</button></div>
+        <div style="flex:0 0 auto"><button class="btn danger sm" data-delu="${u.id}">Remove</button></div>
+      </div>`);
+      row.querySelector("[data-saveu]").onclick=async()=>{
+        const v=row.querySelector("[data-un]").value.trim(); if(!v) return;
+        try{ await sbPatch("units","id=eq."+u.id,{name:v}); u.name=v;
+          const b=row.querySelector("[data-saveu]"); b.textContent="✓"; setTimeout(()=>b.textContent="Save",1000);
+        }catch(e){ alert("Error: "+e.message); }
+      };
+      row.querySelector("[data-delu]").onclick=async()=>{
+        const used=S.teams.filter(t=>t.unit_id===u.id).length;
+        const warn=used?(" "+used+" team"+(used>1?"s":"")+" in it will show no unit until reassigned."):"";
+        if(!(await askConfirm('Remove unit "'+u.name+'"?'+warn))) return;
+        try{ await sbPatch("units","id=eq."+u.id,{active:false}); await reloadUnits(); renderAdmin(true); }
+        catch(e){ alert("Error: "+e.message); }
+      };
+      uList.appendChild(row);
+    });
+    document.getElementById("uAdd").onclick=async()=>{
+      const v=document.getElementById("uNew").value.trim(); if(!v) return;
+      try{ await sbInsert("units",{name:v,active:true}); await reloadUnits(); renderAdmin(true); }
+      catch(e){ alert("Error: "+e.message); }
+    };
+
+    // ===== Teams =====
+    const unitOpts0='<option value="">— no unit —</option>'+S.units.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("");
+    const tc=el(`<div class="card"><h2 class="sec">👥 Teams</h2>
+      <p class="muted" style="margin:2px 0 8px">Assign each team to a unit.</p>
+      <div id="tList"></div>
+      <div class="row" style="align-items:flex-end;margin-top:12px;flex-wrap:wrap">
+        <div style="flex:2;min-width:140px"><label>New team name</label><input id="tNew" placeholder="e.g. Team 7"></div>
+        <div style="flex:2;min-width:140px"><label>Unit</label><select id="tNewUnit">${unitOpts0}</select></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" id="tAdd">Add team</button></div>
       </div>
     </div>`);
     host.appendChild(tc);
     const tList=tc.querySelector("#tList");
     S.teams.forEach(t=>{
-      const row=el(`<div class="row" style="align-items:flex-end;margin:6px 0">
-        <div style="flex:3"><input value="${esc(t.name)}" data-tn="${t.id}"></div>
+      const uOpts='<option value="">— no unit —</option>'+S.units.map(u=>`<option value="${u.id}" ${u.id===t.unit_id?"selected":""}>${esc(u.name)}</option>`).join("");
+      const row=el(`<div class="row" style="align-items:flex-end;margin:6px 0;flex-wrap:wrap">
+        <div style="flex:2;min-width:120px"><input value="${esc(t.name)}" data-tn="${t.id}"></div>
+        <div style="flex:2;min-width:120px"><select data-tu="${t.id}">${uOpts}</select></div>
         <div style="flex:0 0 auto"><button class="btn sec sm" data-savet="${t.id}">Save</button></div>
         <div style="flex:0 0 auto"><button class="btn danger sm" data-delt="${t.id}">Remove</button></div>
       </div>`);
       row.querySelector("[data-savet]").onclick=async()=>{
         const v=row.querySelector("[data-tn]").value.trim(); if(!v) return;
-        try{ await sbPatch("teams","id=eq."+t.id,{name:v}); t.name=v;
+        const uid=parseInt(row.querySelector("[data-tu]").value,10);
+        try{ await sbPatch("teams","id=eq."+t.id,{name:v,unit_id:(uid||null)}); t.name=v; t.unit_id=(uid||null);
           const b=row.querySelector("[data-savet]"); b.textContent="✓"; setTimeout(()=>b.textContent="Save",1000);
         }catch(e){ alert("Error: "+e.message); }
       };
       row.querySelector("[data-delt]").onclick=async()=>{
-        if(!(await askConfirm('Remove unit "'+t.name+'"? Existing records stay, but the unit is hidden.'))) return;
+        if(!(await askConfirm('Remove team "'+t.name+'"? Existing records stay, but the team is hidden.'))) return;
         try{ await sbPatch("teams","id=eq."+t.id,{active:false}); await reloadTeams(); renderAdmin(true); }
         catch(e){ alert("Error: "+e.message); }
       };
@@ -1470,8 +1518,9 @@ async function adUnits(host){
     });
     document.getElementById("tAdd").onclick=async()=>{
       const v=document.getElementById("tNew").value.trim(); if(!v) return;
+      const uid=parseInt(document.getElementById("tNewUnit").value,10);
       const color=PALETTE[S.teams.length % PALETTE.length];
-      try{ await sbInsert("teams",{name:v,color:color,active:true}); await reloadTeams(); renderAdmin(true); }
+      try{ await sbInsert("teams",{name:v,color:color,active:true,unit_id:(uid||null)}); await reloadTeams(); renderAdmin(true); }
       catch(e){ alert("Error: "+e.message); }
     };
 }
