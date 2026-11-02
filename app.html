@@ -814,7 +814,7 @@ async function renderMine(mk, silent){
     const listCard=el(`<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <h2 class="sec">📋 My entries — ${esc(mLabel)}</h2>
-        <span class="muted">${rows.length} in ${esc(mLabel)} · change status anytime</span>
+        <span class="muted">${rows.length} in ${esc(mLabel)} · set to Done to complete (Done is final)</span>
       </div>
       <div style="overflow-x:auto;margin-top:8px"><table class="etable">
         <thead><tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th class="nowrap">Resolved</th><th>Status</th><th></th></tr></thead>
@@ -833,12 +833,14 @@ async function renderMine(mk, silent){
         + `<td>${esc(sup||"—")}</td>`
         + `<td class="rem">${esc(r.remark||"—")}</td>`
         + `<td class="nowrap">${esc(fmtDate(r.resolved_date))}</td>`
-        + `<td><select class="statsel ${stc}" data-id="${r.id}">`
-          + `<option${r.status==="Pending"?" selected":""}>Pending</option>`
-          + `<option${r.status==="In Progress"?" selected":""}>In Progress</option>`
-          + `<option${r.status==="Done"?" selected":""}>Done</option>`
-        + `</select></td>`
-        + `<td><div class="uact"><button class="iconbtn" data-edit="${r.id}" title="Edit entry">✏️</button><button class="iconbtn danger" data-del="${r.id}" title="Remove entry">🗑️</button></div></td></tr>`;
+        + `<td>${ r.status==="Done"
+            ? `<span class="statsel done" title="Completed — cannot be changed">Done</span>`
+            : `<select class="statsel ${stc}" data-id="${r.id}">`
+                + `<option${r.status==="Pending"?" selected":""}>Pending</option>`
+                + `<option${r.status==="In Progress"?" selected":""}>In Progress</option>`
+                + `<option>Done</option>`
+              + `</select>` }</td>`
+        + `<td><div class="uact"><button class="iconbtn" data-edit="${r.id}" title="Edit entry">✏️</button></div></td></tr>`;
     });
     list.innerHTML = rowsHtml;
     const byId={}; rows.forEach(r=>byId[r.id]=r);
@@ -848,22 +850,14 @@ async function renderMine(mk, silent){
         const next=sel.value;
         if(next==="Done"){
           const def=(r.resolved_date? String(r.resolved_date).slice(0,10) : todayISO());
-          const rd=await askResolvedDate(def);
+          const rd=await askResolvedDate(def, r.remark);
           if(!rd){ sel.value=r.status; return; }   // cancelled → keep previous status
-          try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd}); r.status="Done"; r.resolved_date=rd; renderMine(curMk, true); }
+          try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd.date,remark:(rd.remark||null)}); r.status="Done"; r.resolved_date=rd.date; r.remark=rd.remark||null; renderMine(curMk, true); }
           catch(e){ alert("Error: "+e.message); sel.value=r.status; }
           return;
         }
         try{ await sbPatch("entries","id=eq."+r.id,{status:next,resolved_date:null}); r.status=next; r.resolved_date=null; renderMine(curMk, true); }
         catch(e){ alert("Error: "+e.message); sel.value=r.status; }
-      };
-    });
-    list.querySelectorAll("button[data-del]").forEach(btn=>{
-      const id=parseInt(btn.getAttribute("data-del"),10);
-      btn.onclick=async()=>{
-        if(!(await askConfirm("Remove this entry? It will be permanently deleted."))) return;
-        try{ const x=await fetch(REST+"entries?id=eq."+id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); renderMine(curMk, true); }
-        catch(e){ alert("Error: "+e.message); }
       };
     });
     list.querySelectorAll("button[data-edit]").forEach(btn=>{
@@ -876,7 +870,8 @@ function editEntry(r){
   const svcOpts='<option value="">—</option>'+S.services.map(s=>`<option${s.name===r.service?" selected":""}>${esc(s.name)}</option>`).join("");
   const catOpts='<option value="">—</option>'+S.categories.map(c=>`<option${c.name===r.category?" selected":""}>${esc(c.name)}</option>`).join("");
   const stOpts=S.supports.map(s=>`<option value="${s.id}" data-pts="${s.points}"${s.id===r.support_type_id?" selected":""}>${esc(s.name)} (${s.points} pts)</option>`).join("");
-  const statOpts=["Pending","In Progress","Done"].map(s=>`<option${s===r.status?" selected":""}>${s}</option>`).join("");
+  const statList=(r.status==="Done")?["Done"]:["Pending","In Progress","Done"];
+  const statOpts=statList.map(s=>`<option${s===r.status?" selected":""}>${s}</option>`).join("");
   const m=el(`<div class="modal"><div class="box">
     <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✏️ Edit entry</h2><button class="iconbtn" id="edX" title="Close">✕</button></div>
     <div id="edMsg"></div>
@@ -927,13 +922,15 @@ function editEntry(r){
   };
 }
 
-function askResolvedDate(defDate){
+function askResolvedDate(defDate, defRemark){
   return new Promise(resolve=>{
     const m=el(`<div class="modal"><div class="box" style="max-width:360px">
       <h2 class="sec">✅ Mark as Done</h2>
       <p class="muted" style="margin:4px 0 12px">Please set the Resolved date to complete this task.</p>
       <label>Resolved date</label>
       ${dfield("rdDate",defDate||"")}
+      <label style="margin-top:10px">Remark</label>
+      <textarea id="rdRemark" placeholder="optional notes">${esc(defRemark||"")}</textarea>
       <div id="rdMsg"></div>
       <div class="row" style="margin-top:14px">
         <button class="btn sec" id="rdCancel">Cancel</button>
@@ -948,7 +945,7 @@ function askResolvedDate(defDate){
     m.querySelector("#rdOk").onclick=()=>{
       const v=document.getElementById("rdDate").value;
       if(!v){ document.getElementById("rdMsg").innerHTML="<div class='notice err'>Resolved date is required.</div>"; return; }
-      finish(v);
+      finish({date:v, remark:document.getElementById("rdRemark").value.trim()});
     };
   });
 }
