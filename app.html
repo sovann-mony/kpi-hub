@@ -253,6 +253,8 @@
   .df .df-txt{width:100%;cursor:pointer}
   .df .df-date{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0;padding:0;border:none}
   .df:focus-within .df-txt{border-color:var(--accent);box-shadow:var(--ring)}
+  .df.df-locked{opacity:.55}
+  .df.df-locked .df-txt{cursor:not-allowed;background:var(--chip)}
   /* ===== Admin sub-tabs ===== */
   .subnav{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
   .subnav button{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
@@ -700,6 +702,7 @@ function renderLog(){
   const sel=document.getElementById("f_support"), hint=document.getElementById("ptsHint");
   const updPts=()=>{const o=sel.selectedOptions[0];hint.textContent=(o&&o.dataset.pts)?("= "+o.dataset.pts+" points"):"";};
   sel.onchange=updPts; updPts();
+  wireStatusResolved(c, "f_status", "f_resolved");
   document.getElementById("saveEntry").onclick=saveEntry;
 }
 async function saveEntry(){
@@ -711,6 +714,9 @@ async function saveEntry(){
   const supId=parseInt(document.getElementById("f_support").value,10);
   if(!supId){ msg.innerHTML="<div class='notice err'>Please choose a support type.</div>"; return; }
   const sup=S.supports.find(s=>s.id===supId);
+  const statusVal=document.getElementById("f_status").value;
+  const resolvedVal=document.getElementById("f_resolved").value;
+  if(statusVal==="Done" && !resolvedVal){ msg.innerHTML="<div class='notice err'>Please set the Resolved date — it's required when the status is Done.</div>"; return; }
   const btn=document.getElementById("saveEntry"); btn.disabled=true; btn.textContent="Saving…";
   try{
     await sbInsert("entries",{
@@ -721,8 +727,8 @@ async function saveEntry(){
       category: document.getElementById("f_category").value.trim() || null,
       support_type_id: supId,
       points: sup ? sup.points : 0,
-      status: document.getElementById("f_status").value,
-      resolved_date: document.getElementById("f_resolved").value || null,
+      status: statusVal,
+      resolved_date: statusVal==="Done" ? (resolvedVal||null) : null,
       remark: document.getElementById("f_remark").value.trim() || null,
       team_id: AUTH.user.team_id,
       staff_user_id: AUTH.user.id,
@@ -848,9 +854,8 @@ async function renderMine(mk, silent){
           catch(e){ alert("Error: "+e.message); sel.value=r.status; }
           return;
         }
-        try{ await sbPatch("entries","id=eq."+r.id,{status:next}); r.status=next;
-          sel.className="statsel "+(next==="In Progress"?"progress":"pending");
-        }catch(e){ alert("Error: "+e.message); sel.value=r.status; }
+        try{ await sbPatch("entries","id=eq."+r.id,{status:next,resolved_date:null}); r.status=next; r.resolved_date=null; renderMine(curMk, true); }
+        catch(e){ alert("Error: "+e.message); sel.value=r.status; }
       };
     });
     list.querySelectorAll("button[data-del]").forEach(btn=>{
@@ -893,6 +898,7 @@ function editEntry(r){
   </div></div>`);
   document.body.appendChild(m);
   wireDF(m);
+  wireStatusResolved(m, "ed_status", "ed_resolved");
   const close=()=>m.remove();
   m.querySelector("#edX").onclick=close;
   m.querySelector("#edCancel").onclick=close;
@@ -900,6 +906,9 @@ function editEntry(r){
   m.querySelector("#edSave").onclick=async()=>{
     const supId=parseInt(document.getElementById("ed_support").value,10);
     const sup=S.supports.find(s=>s.id===supId);
+    const edStatus=document.getElementById("ed_status").value;
+    const edResolved=document.getElementById("ed_resolved").value;
+    if(edStatus==="Done" && !edResolved){ document.getElementById("edMsg").innerHTML="<div class='notice err'>Please set the Resolved date — it's required when the status is Done.</div>"; return; }
     const body={
       start_date: document.getElementById("ed_start").value||null,
       merchant_name: document.getElementById("ed_merchant").value.trim()||null,
@@ -908,8 +917,8 @@ function editEntry(r){
       category: document.getElementById("ed_category").value.trim()||null,
       support_type_id: supId,
       points: sup?sup.points:0,
-      status: document.getElementById("ed_status").value,
-      resolved_date: document.getElementById("ed_resolved").value||null,
+      status: edStatus,
+      resolved_date: edStatus==="Done" ? (edResolved||null) : null,
       remark: document.getElementById("ed_remark").value.trim()||null
     };
     const b=document.getElementById("edSave"); b.disabled=true; b.textContent="Saving…";
@@ -964,6 +973,19 @@ function wireDF(root){ (root||document).querySelectorAll('.df .df-date').forEach
   var txt=d.parentElement.querySelector('.df-txt'); var sync=function(){ txt.value=d.value?fmtDate(d.value):""; };
   d.addEventListener('change',sync); var open=function(){ try{ d.showPicker(); }catch(e){} };
   d.addEventListener('click',open); txt.addEventListener('click',open); sync(); }); }
+/* Resolved date is only usable when Status = Done. */
+function setResolvedLock(root, dateId, on){
+  var d=(root||document).querySelector('#'+dateId); if(!d) return;
+  var df=d.closest('.df'), txt=df?df.querySelector('.df-txt'):null;
+  if(df) df.classList.toggle('df-locked', !on);
+  d.disabled=!on; if(txt){ txt.disabled=!on; txt.placeholder = on ? 'dd-mmm-yyyy' : 'Set when Done'; }
+  if(!on){ d.value=""; if(txt) txt.value=""; }
+}
+function wireStatusResolved(root, statusId, dateId){
+  var sx=(root||document).querySelector('#'+statusId); if(!sx) return;
+  var apply=function(){ setResolvedLock(root, dateId, sx.value==='Done'); };
+  sx.addEventListener('change', apply); apply();
+}
 function askConfirm(msg){ return new Promise(res=>{ try{ if(tg && tg.showConfirm){ tg.showConfirm(msg, ok=>res(!!ok)); return; } }catch(e){} res(window.confirm(msg)); }); }
 async function renderSummary(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
