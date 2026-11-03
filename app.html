@@ -831,7 +831,7 @@ async function renderMine(silent){
     if(role==="admin" && f.unit){ const uid=parseInt(f.unit,10); qTeamIds = S.teams.filter(t=>t.unit_id===uid).map(t=>t.id); }
     if(f.team){ qTeamIds=[parseInt(f.team,10)]; }
 
-    // build query
+    // build query (officers are hard-locked to their OWN entries only)
     const params=["start_date=gte."+f.from,"start_date=lte."+f.to,"select=*,support_types(name)","order=start_date.desc,created_at.desc","limit=1000"];
     let noScope=false;
     if(role==="officer"){ params.push("staff_user_id=eq."+AUTH.user.id); }
@@ -846,9 +846,9 @@ async function renderMine(silent){
 
     app.innerHTML="";
 
-    // users available for the User dropdown (within current team/unit scope)
-    const userScope = qTeamIds;
-    const userOpts = users.filter(u=> userScope.indexOf(u.team_id)>=0 ).map(u=>({v:u.id,t:(u.name||u.username||("User "+u.id))}));
+    // ---- filter card ----
+    const userTeamIds = f.team ? [parseInt(f.team,10)] : qTeamIds;
+    const userOpts = users.filter(u=> userTeamIds.indexOf(u.team_id)>=0 ).map(u=>({v:u.id,t:(u.name||u.username||("User "+u.id))}));
     function optList(items, selId, allLabel){
       return '<option value="">'+esc(allLabel)+'</option>'+items.map(it=>`<option value="${it.v}" ${String(it.v)===String(selId)?"selected":""}>${esc(it.t)}</option>`).join("");
     }
@@ -873,18 +873,41 @@ async function renderMine(silent){
     const filtCard=el(`<div class="card">
       <h2 class="sec">\u{1F4CB} ${role==="officer"?"My entries":"Entries"}</h2>
       <div class="grid2">${ctrls}</div>
-      <p class="muted" style="margin-top:10px">${rows.length} entr${rows.length===1?"y":"ies"} · ${totalPts} pts</p>
+      <div class="row" style="gap:8px;margin-top:12px">
+        <button class="btn" id="mf_apply" style="width:auto">Apply filter</button>
+        <button class="btn sec" id="mf_reset" style="width:auto">Reset</button>
+      </div>
     </div>`);
     app.appendChild(filtCard);
 
-    const wire=(id,key,resetKeys)=>{ const e2=document.getElementById(id); if(e2) e2.onchange=()=>{ f[key]=e2.value; (resetKeys||[]).forEach(k=>f[k]=""); renderMine(true); }; };
-    wire("mf_unit","unit",["team","user"]);
-    wire("mf_team","team",["user"]);
-    wire("mf_user","user",[]);
-    wire("mf_from","from",[]);
-    wire("mf_to","to",[]);
+    // cascade dependent dropdowns locally (no fetch until Apply)
+    function rebuildUserSel(){
+      const usel=document.getElementById("mf_user"); if(!usel) return;
+      const tv=document.getElementById("mf_team")?document.getElementById("mf_team").value:"";
+      let tids;
+      if(tv) tids=[parseInt(tv,10)];
+      else if(role==="admin"){ const uv=document.getElementById("mf_unit")?document.getElementById("mf_unit").value:""; tids = uv? S.teams.filter(t=>t.unit_id===parseInt(uv,10)).map(t=>t.id) : S.teams.map(t=>t.id); }
+      else tids=scopeTeamIds;
+      const ops=users.filter(u=>tids.indexOf(u.team_id)>=0);
+      usel.innerHTML='<option value="">'+(role==="team_lead"?"All officers":"All users")+'</option>'+ops.map(u=>`<option value="${u.id}">${esc(u.name||u.username||("User "+u.id))}</option>`).join("");
+    }
+    const uSel=document.getElementById("mf_unit");
+    if(uSel) uSel.onchange=()=>{
+      const tsel=document.getElementById("mf_team"); const uv=parseInt(uSel.value,10);
+      if(tsel){ const teams=uSel.value? S.teams.filter(t=>t.unit_id===uv):S.teams; tsel.innerHTML='<option value="">All teams</option>'+teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join(""); }
+      rebuildUserSel();
+    };
+    const tSel=document.getElementById("mf_team");
+    if(tSel) tSel.onchange=rebuildUserSel;
 
-    // table
+    document.getElementById("mf_apply").onclick=()=>{
+      const gv=(id)=>{ const e=document.getElementById(id); return e?e.value:""; };
+      S._mine={ unit:gv("mf_unit"), team:gv("mf_team"), user:gv("mf_user"), from:gv("mf_from")||f.from, to:gv("mf_to")||f.to };
+      renderMine(true);
+    };
+    document.getElementById("mf_reset").onclick=()=>{ S._mine={ from:firstOfMonthISO(), to:todayISO(), unit:"", team:"", user:"" }; renderMine(true); };
+
+    // ---- results table ----
     const showStaff = role!=="officer";
     const showTeamCol = (role==="manager"||role==="admin");
     let headCols="";
@@ -898,10 +921,23 @@ async function renderMine(silent){
     if(role==="officer"||role==="admin") headCols+="<th></th>";
     const colCount=(headCols.match(/<th/g)||[]).length;
 
-    const listCard=el(`<div class="card"><div style="overflow-x:auto"><table class="etable">
-      <thead><tr>${headCols}</tr></thead><tbody id="eList"></tbody></table></div></div>`);
+    const listCard=el(`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <span class="muted">${rows.length} entr${rows.length===1?"y":"ies"} · ${totalPts} pts</span>
+        <button class="iconbtn" id="mineSearchBtn" title="Search results">\u{1F50D}</button>
+      </div>
+      <div id="mineSearchWrap" class="hide" style="margin-top:8px"><input id="mineSearch" placeholder="Search results…"></div>
+      <div style="overflow-x:auto;margin-top:8px"><table class="etable">
+        <thead><tr>${headCols}</tr></thead><tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
+
+    // search toggle + text filter (all roles)
+    const sBtn=listCard.querySelector("#mineSearchBtn"), sWrap=listCard.querySelector("#mineSearchWrap"), sIn=listCard.querySelector("#mineSearch");
+    const applySearch=()=>{ const q=(sIn.value||"").trim().toLowerCase(); list.querySelectorAll("tr").forEach(tr=>{ tr.style.display=(!q||tr.textContent.toLowerCase().indexOf(q)>=0)?"":"none"; }); };
+    if(sBtn) sBtn.onclick=()=>{ sWrap.classList.toggle("hide"); if(!sWrap.classList.contains("hide")) sIn.focus(); else { sIn.value=""; applySearch(); } };
+    if(sIn) sIn.oninput=applySearch;
+
     if(!rows.length){ list.innerHTML="<tr><td colspan='"+colCount+"' class='center'>No entries for this filter.</td></tr>"; return; }
 
     const byId={}; rows.forEach(r=>byId[r.id]=r);
