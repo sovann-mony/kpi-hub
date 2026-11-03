@@ -251,6 +251,8 @@
 
   /* ===== My Entries full table ===== */
   .etable{min-width:920px}
+  .etable.fit{min-width:0;width:100%}
+  .etable.fit th,.etable.fit td{padding:10px 8px}
   /* ===== Edit modal ===== */
   .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:24px 16px;overflow:auto}
   .modal.modal-center{align-items:center}
@@ -1263,7 +1265,7 @@ async function staffDetailHtml(userId, mk){
     rows+=`<tr${tk?"":" class='muted'"}><td class="nowrap">${fmtDate(ds)}</td><td class="num">${tk}</td><td class="num">${pt}</td></tr>`;
   }
   return `<p class="muted" style="margin:0 0 10px">${esc(mk)} · Leave: <b>${leaveDays}</b> day(s) · Total tasks: <b>${tTask}</b> · Total score: <b>${tPts}</b></p>
-    <div style="overflow-x:auto;max-height:52vh;overflow-y:auto"><table class="etable">
+    <div style="max-height:52vh;overflow-y:auto"><table class="etable fit">
       <thead><tr><th>Date</th><th class="num">Tasks</th><th class="num">Points</th></tr></thead>
       <tbody>${rows}<tr><td><b>Total</b></td><td class="num"><b>${tTask}</b></td><td class="num"><b>${tPts}</b></td></tr></tbody>
     </table></div>`;
@@ -1296,15 +1298,17 @@ function staffTableHtml(members, calRow, ptsByUser, leaveByUser){
   const rows=members.map(u=>{
     const pts=ptsByUser[u.id]||0;
     const lvd=leaveByUser[u.id]||0;
+    const noKpi = (u.role==="manager"||u.role==="admin");
     const eff = wd!=null? Math.max(0, wd-lvd) : null;
-    const tgt = eff!=null? Math.round(teamDaily(u.team_id)*eff) : null;
-    const tag = u.role==="team_lead"?' <span class="muted">(Lead)</span>':(u.role==="manager"?' <span class="muted">(Manager)</span>':'');
+    const tgt = (!noKpi && eff!=null)? Math.round(teamDaily(u.team_id)*eff) : null;
+    const tag = u.role==="team_lead"?' <span class="muted">(Lead)</span>':(u.role==="manager"?' <span class="muted">(Manager)</span>':(u.role==="admin"?' <span class="muted">(Admin)</span>':''));
+    const tgtCell = noKpi? `<span class="muted">No KPI required</span>` : (tgt==null?"\u2014":tgt);
     return `<tr>
       <td>${esc(u.name||u.username||("User "+u.id))}${tag}</td>
       <td class="num">${lvd}</td>
       <td class="num"><b>${pts}</b></td>
-      <td class="num">${tgt==null?"\u2014":tgt}</td>
-      <td>${flagFor(pts,tgt)}</td>
+      <td class="num">${tgtCell}</td>
+      <td>${noKpi?"":flagFor(pts,tgt)}</td>
       <td><button class="iconbtn" data-uid="${u.id}" title="View detail">\u{1F4CB} Detail</button></td>
     </tr>`;
   }).join("");
@@ -1334,9 +1338,10 @@ async function renderSummary(){
     });
     const staffByTeam={}, leaveByTeam={}, usersByTeam={};
     usersFull.forEach(u=>{ if(u.team_id){
+      (usersByTeam[u.team_id]=usersByTeam[u.team_id]||[]).push(u);
+      if(u.role==="manager"||u.role==="admin") return;   // managers/admins have no KPI, exclude from team target
       staffByTeam[u.team_id]=(staffByTeam[u.team_id]||0)+1;
       leaveByTeam[u.team_id]=(leaveByTeam[u.team_id]||0)+(leaveByUser[u.id]||0);
-      (usersByTeam[u.team_id]=usersByTeam[u.team_id]||[]).push(u);
     }});
     const myLeave = leaveByUser[AUTH.user.id]||0;
 
