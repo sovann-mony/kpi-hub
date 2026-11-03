@@ -1264,29 +1264,64 @@ async function renderAdmin(silent){
     else if(S.adminTab==="support") await adSupport(body);
   }catch(e){ body.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
+function genUserPass(){ return "Kpi"+Math.random().toString(36).slice(2,8); }
+function fillTeamsForUnit(unitSel, teamSel){
+  const uid=parseInt(unitSel.value,10);
+  const teams=S.teams.filter(t=>!uid || t.unit_id===uid);
+  teamSel.innerHTML = teams.length ? teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("") : '<option value="">(no teams in this unit)</option>';
+}
+function showCredsModal(title, name, username, password, onClose){
+  const m=el(`<div class="modal modal-center"><div class="box" style="max-width:400px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✅ ${esc(title)}</h2><button class="iconbtn" data-x title="Close">✕</button></div>
+    <p class="muted" style="margin:6px 0 12px">Give these to ${esc(name||'the user')}. The password is shown once — copy it now.</p>
+    <label>Username</label>
+    <input id="cm_user" readonly value="${esc(username)}">
+    <label>Password</label>
+    <input id="cm_pass" readonly value="${esc(password)}">
+    <div id="cmMsg" class="muted" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn sec" id="cm_copy">Copy</button>
+      <button class="btn" id="cm_done">Done</button>
+    </div>
+  </div></div>`);
+  document.body.appendChild(m);
+  const close=()=>{ m.remove(); if(onClose) onClose(); };
+  m.querySelector('[data-x]').onclick=close;
+  m.querySelector('#cm_done').onclick=close;
+  ['#cm_user','#cm_pass'].forEach(id=>{ const i=m.querySelector(id); if(i) i.onclick=()=>i.select(); });
+  m.querySelector('#cm_copy').onclick=async()=>{
+    const txt="Username: "+username+"\nPassword: "+password;
+    try{ await navigator.clipboard.writeText(txt); m.querySelector('#cmMsg').textContent="Copied to clipboard."; }
+    catch(e){ const i=m.querySelector('#cm_pass'); i.focus(); i.select(); m.querySelector('#cmMsg').textContent="Select the password and press Ctrl/Cmd+C."; }
+  };
+}
 async function adUsers(host){
     const users=await sbGet("users?select="+USER_COLS+"&order=id");
 
-    // --- Add staff ---
-    const teamOpts=S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("");
+    // --- Add new user ---
+    const unitOpts=S.units.length?S.units.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join(""):'<option value="">(no units)</option>';
     const roleOpts=["officer","team_lead","manager","admin"].map(r=>`<option value="${r}">${roleName[r]}</option>`).join("");
-    const addc=el(`<div class="card"><h2 class="sec">➕ Add staff login</h2>
+    const addc=el(`<div class="card"><h2 class="sec">➕ Add new user</h2>
       <div id="addMsg"></div>
       <div class="grid2">
         <div><label>Full name</label><input id="a_name" placeholder="e.g. Sok Dara"></div>
         <div><label>Username</label><input id="a_user" autocapitalize="off" placeholder="e.g. dara"></div>
-        <div><label>Password</label><input id="a_pass" placeholder="set a password"></div>
-        <div><label>Team</label><select id="a_team">${teamOpts}</select></div>
+        <div><label>Unit</label><select id="a_unit">${unitOpts}</select></div>
+        <div><label>Team</label><select id="a_team"></select></div>
         <div><label>Role</label><select id="a_role">${roleOpts}</select></div>
       </div>
+      <p class="muted" style="margin-top:8px">A password is generated automatically and shown to you right after you create the user.</p>
       <div style="height:10px"></div>
-      <button class="btn" id="a_save">Create staff</button>
+      <button class="btn" id="a_save">Create new user</button>
     </div>`);
     host.appendChild(addc);
+    const aUnit=addc.querySelector("#a_unit"), aTeam=addc.querySelector("#a_team");
+    fillTeamsForUnit(aUnit, aTeam);
+    aUnit.onchange=()=>fillTeamsForUnit(aUnit, aTeam);
     document.getElementById("a_save").onclick=addStaff;
 
     // --- Bulk add staff ---
-    const bulk=el(`<div class="card"><h2 class="sec">⚡ Bulk add staff</h2>
+    const bulk=el(`<div class="card"><h2 class="sec">⚡ Bulk add new users</h2>
       <p class="muted">One person per line: <b>Full name, username, password, team, role</b>. Password optional (blank = auto-generated). Role optional (default Officer). Team = name or number 1–${S.teams.length}.</p>
       <textarea id="bulkText" style="min-height:130px" placeholder="Sok Dara, dara, Pass@123, Team 1, officer&#10;Chan Nita, nita, , Team 2&#10;Vann Rith, rith, , Team 2, team_lead"></textarea>
       <div id="bulkMsg"></div>
@@ -1296,7 +1331,7 @@ async function adUsers(host){
     document.getElementById("bulkGo").onclick=bulkAdd;
 
     // --- Existing staff (single-row list) ---
-    const uc=el(`<div class="card"><h2 class="sec">👤 Staff (${users.length})</h2>
+    const uc=el(`<div class="card"><h2 class="sec">👥 Users (${users.length})</h2>
       <div class="urow uhead"><div>Name</div><div>Team</div><div>Role</div><div class="uact">Actions</div></div>
       <div id="uList"></div></div>`);
     host.appendChild(uc);
@@ -1625,20 +1660,21 @@ async function addStaff(){
   const msg=document.getElementById("addMsg");
   const name=document.getElementById("a_name").value.trim();
   const user=document.getElementById("a_user").value.trim();
-  const pass=document.getElementById("a_pass").value;
-  if(!name||!user||!pass){ msg.innerHTML="<div class='notice err'>Name, username and password are required.</div>"; return; }
+  if(!name||!user){ msg.innerHTML="<div class='notice err'>Name and username are required.</div>"; return; }
+  const teamVal=document.getElementById("a_team").value;
+  const pass=genUserPass();
   const btn=document.getElementById("a_save"); btn.disabled=true; btn.textContent="Creating…";
   try{
     await sbRpc("app_save_user",{
       p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
       p_user_id:null, p_name:name, p_username:user, p_password:pass,
-      p_team_id: parseInt(document.getElementById("a_team").value,10),
+      p_team_id: (parseInt(teamVal,10)||null),
       p_role: document.getElementById("a_role").value, p_active:true
     });
-    renderAdmin();
+    showCredsModal("User created", name, user, pass, ()=>renderAdmin(true));
   }catch(e){
     msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>";
-    btn.disabled=false; btn.textContent="Create staff";
+    btn.disabled=false; btn.textContent="Create new user";
   }
 }
 
@@ -1668,7 +1704,7 @@ async function bulkAdd(){
   const rows=results.map(r=> r.ok
     ? `<tr><td>${esc(r.name)}</td><td><code>${esc(r.user)}</code></td><td><code>${esc(r.pass)}</code></td><td>✅</td></tr>`
     : `<tr><td colspan="3">${esc(r.line)} <span class="muted">(${esc(r.err)})</span></td><td>❌</td></tr>`).join("");
-  msg.innerHTML=`<div class="notice ok">Created ${ok} of ${results.length}. Copy the usernames &amp; passwords below to give to staff.</div>`
+  msg.innerHTML=`<div class="notice ok">Created ${ok} of ${results.length}. Copy the usernames &amp; passwords below to give to users.</div>`
     +`<table><thead><tr><th>Name</th><th>Username</th><th>Password</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   document.getElementById("bulkText").value="";
   btn.disabled=false; btn.textContent="Create all";
