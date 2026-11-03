@@ -1246,9 +1246,12 @@ async function renderOwnSummary(mk, from, to){
 }
 
 /* ---- detail builders (used by the Detail button on Summary) ---- */
-async function ownDetailHtml(mk){
+/* ---- per-staff detail (daily tasks & scores), shown as a popup ---- */
+async function staffDetailHtml(userId, mk){
   const from=mk+"-01", to=nextMonthStart(mk);
-  const es=await sbGet(`entries?staff_user_id=eq.${AUTH.user.id}&start_date=gte.${from}&start_date=lt.${to}&select=start_date,points&limit=5000`);
+  const es=await sbGet(`entries?staff_user_id=eq.${userId}&start_date=gte.${from}&start_date=lt.${to}&select=start_date,points&limit=5000`);
+  const lvr=(await sbGet(`leaves?staff_user_id=eq.${userId}&month=eq.${mk}&select=days`))[0];
+  const leaveDays=lvr?(Number(lvr.days)||0):0;
   const [y,m]=mk.split("-").map(Number);
   const days=new Date(y,m,0).getDate();
   const taskBy={}, ptBy={};
@@ -1259,64 +1262,55 @@ async function ownDetailHtml(mk){
     const tk=taskBy[ds]||0, pt=ptBy[ds]||0; tTask+=tk; tPts+=pt;
     rows+=`<tr${tk?"":" class='muted'"}><td class="nowrap">${fmtDate(ds)}</td><td class="num">${tk}</td><td class="num">${pt}</td></tr>`;
   }
-  return `<h3 style="margin:0 0 8px">Daily detail — ${esc(mk)}</h3>
-    <div style="overflow-x:auto"><table class="etable">
+  return `<p class="muted" style="margin:0 0 10px">${esc(mk)} · Leave: <b>${leaveDays}</b> day(s) · Total tasks: <b>${tTask}</b> · Total score: <b>${tPts}</b></p>
+    <div style="overflow-x:auto;max-height:52vh;overflow-y:auto"><table class="etable">
       <thead><tr><th>Date</th><th class="num">Tasks</th><th class="num">Points</th></tr></thead>
       <tbody>${rows}<tr><td><b>Total</b></td><td class="num"><b>${tTask}</b></td><td class="num"><b>${tPts}</b></td></tr></tbody>
     </table></div>`;
 }
-async function membersDetailHtml(mk, calRow, teamsToShow, role){
-  const teamIds=teamsToShow.map(t=>t.id);
-  if(!teamIds.length) return "<p class='muted'>No teams to show.</p>";
-  const from=mk+"-01", to=nextMonthStart(mk);
-  const us=await sbGet(`users?select=id,name,username,team_id,role&active=eq.true&team_id=in.(${teamIds.join(",")})&order=name`);
-  const es=await sbGet(`entries?select=staff_user_id,points&start_date=gte.${from}&start_date=lt.${to}&team_id=in.(${teamIds.join(",")})&limit=5000`);
-  const lv=await sbGet(`leaves?month=eq.${mk}&select=staff_user_id,days`);
-  const ptBy={}, lvBy={};
-  es.forEach(e=>{ if(e.staff_user_id) ptBy[e.staff_user_id]=(ptBy[e.staff_user_id]||0)+(e.points||0); });
-  lv.forEach(l=>{ lvBy[l.staff_user_id]=Number(l.days)||0; });
-  const wd = calRow? calRow.working_days : null;
-  function userRow(u){
-    const pts=ptBy[u.id]||0;
-    const eff = wd!=null? Math.max(0, wd-(lvBy[u.id]||0)) : null;
-    const tgt = eff!=null? Math.round(teamDaily(u.team_id)*eff) : null;
-    let flag="";
-    if(tgt!=null){ if(pts<tgt) flag='<span class="flag below">Below</span>'; else if(pts<=tgt*1.15) flag='<span class="flag track">On track</span>'; else flag='<span class="flag over">Over</span>'; }
-    const tag = u.role==="team_lead"?' <span class="muted">(Lead)</span>':(u.role==="manager"?' <span class="muted">(Manager)</span>':'');
-    return `<tr><td>${esc(u.name||u.username||("User "+u.id))}${tag}</td><td class="num">${pts}</td><td class="num">${tgt==null?"—":tgt}</td><td>${flag}</td></tr>`;
-  }
-  const thead=`<thead><tr><th>User</th><th class="num">Points</th><th class="num">Target</th><th>Flag</th></tr></thead>`;
-  if(role==="team_lead"){
-    return `<h3 style="margin:0 0 8px">My team — members vs target</h3>
-      <div style="overflow-x:auto"><table class="etable">${thead}<tbody>${us.map(userRow).join("")||`<tr><td colspan="4" class="muted">No users.</td></tr>`}</tbody></table></div>`;
-  }
-  const teamBlock=(t)=>{
-    const members=us.filter(u=>u.team_id===t.id);
-    return `<h3 style="margin:14px 0 6px"><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</h3>`
-      + (members.length
-        ? `<div style="overflow-x:auto"><table class="etable">${thead}<tbody>${members.map(userRow).join("")}</tbody></table></div>`
-        : `<p class="muted" style="margin:0 0 6px">No users in this team.</p>`);
-  };
-  let html="";
-  if(role==="admin"){
-    // Units → Teams → Users
-    S.units.forEach(unit=>{
-      const unitTeams=teamsToShow.filter(t=>t.unit_id===unit.id);
-      if(!unitTeams.length) return;
-      html += `<h2 class="sec" style="margin:18px 0 4px">🏢 ${esc(unit.name)}</h2>`;
-      unitTeams.forEach(t=>{ html += teamBlock(t); });
-    });
-    const orphans=teamsToShow.filter(t=>!S.units.find(u=>u.id===t.unit_id));
-    if(orphans.length){
-      html += `<h2 class="sec" style="margin:18px 0 4px">🏢 No unit</h2>`;
-      orphans.forEach(t=>{ html += teamBlock(t); });
-    }
-    return html;
-  }
-  // manager: teams within their unit
-  teamsToShow.forEach(t=>{ html += teamBlock(t); });
-  return html;
+async function ownDetailHtml(mk){ return staffDetailHtml(AUTH.user.id, mk); }
+async function showStaffDetailModal(user, mk){
+  const m=el(`<div class="modal modal-center"><div class="box" style="max-width:520px">
+    <h2 class="sec">\u{1F4CB} ${esc(user.name||user.username||("User "+user.id))}</h2>
+    <div id="sdBody"><div class="center"><span class="spin"></span></div></div>
+    <div class="row" style="margin-top:14px"><button class="btn sec" data-close>Close</button></div>
+  </div></div>`);
+  document.body.appendChild(m);
+  const done=()=>m.remove();
+  m.querySelector("[data-close]").onclick=done;
+  m.onclick=(e)=>{ if(e.target===m) done(); };
+  try{ document.getElementById("sdBody").innerHTML=await staffDetailHtml(user.id, mk); }
+  catch(e){ document.getElementById("sdBody").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
+/* ---- staff listing with per-staff Leave, flag, and a Detail popup button ---- */
+function flagFor(pts, tgt){
+  if(tgt==null) return "";
+  if(pts<tgt) return '<span class="flag below">Below</span>';
+  if(pts<=tgt*1.15) return '<span class="flag track">On track</span>';
+  return '<span class="flag over">Over</span>';
+}
+function staffTableHtml(members, calRow, ptsByUser, leaveByUser){
+  const wd = calRow? calRow.working_days : null;
+  const thead=`<thead><tr><th>Staff</th><th class="num">Leave</th><th class="num">Points</th><th class="num">Target</th><th>Flag</th><th></th></tr></thead>`;
+  if(!members.length) return `<p class="muted" style="margin:0 0 6px">No staff in this team.</p>`;
+  const rows=members.map(u=>{
+    const pts=ptsByUser[u.id]||0;
+    const lvd=leaveByUser[u.id]||0;
+    const eff = wd!=null? Math.max(0, wd-lvd) : null;
+    const tgt = eff!=null? Math.round(teamDaily(u.team_id)*eff) : null;
+    const tag = u.role==="team_lead"?' <span class="muted">(Lead)</span>':(u.role==="manager"?' <span class="muted">(Manager)</span>':'');
+    return `<tr>
+      <td>${esc(u.name||u.username||("User "+u.id))}${tag}</td>
+      <td class="num">${lvd}</td>
+      <td class="num"><b>${pts}</b></td>
+      <td class="num">${tgt==null?"\u2014":tgt}</td>
+      <td>${flagFor(pts,tgt)}</td>
+      <td><button class="iconbtn" data-uid="${u.id}" title="View detail">\u{1F4CB} Detail</button></td>
+    </tr>`;
+  }).join("");
+  return `<div style="overflow-x:auto"><table class="etable">${thead}<tbody>${rows}</tbody></table></div>`;
+}
+
 async function renderSummary(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
   const mk = S._month || monthKey(new Date());
@@ -1326,21 +1320,25 @@ async function renderSummary(){
     const from = `${mk}-01`;
     const to = nextMonthStart(mk);
     if(AUTH.user.role==="officer"){ await renderOwnSummary(mk, from, to); return; }
-    const entries = await sbGet(`entries?select=team_id,points,start_date&start_date=gte.${from}&start_date=lt.${to}&limit=5000`);
-    const users   = await sbGet("users?select=team_id,active&active=eq.true");
-    const cal     = await sbGet(`month_calendar?select=*&month=eq.${mk}`);
-    const targets = await sbGet(`monthly_targets?select=*&month=eq.${mk}`);
-    const daily = parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
+    const usersFull   = await sbGet("users?select=id,name,username,team_id,role&active=eq.true&order=name");
+    const entriesStaff = await sbGet(`entries?select=staff_user_id,team_id,points&start_date=gte.${from}&start_date=lt.${to}&limit=5000`);
+    const cal         = await sbGet(`month_calendar?select=*&month=eq.${mk}`);
+    const leavesRows  = await sbGet(`leaves?month=eq.${mk}&select=staff_user_id,days`);
     const calRow = cal[0];
-    let myLeave=0;
-    if(AUTH.user.role==="team_lead"){
-      const _l=(await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=days"))[0];
-      myLeave=_l?(Number(_l.days)||0):0;
-    }
-    const staffBy={}, actualBy={}, leaveBy={};
-    users.forEach(u=>{ if(u.team_id) staffBy[u.team_id]=(staffBy[u.team_id]||0)+1; });
-    entries.forEach(e=>{ if(e.team_id) actualBy[e.team_id]=(actualBy[e.team_id]||0)+(e.points||0); });
-    targets.forEach(t=>{ leaveBy[t.team_id]=t.leave_days||0; });
+
+    const leaveByUser={}; leavesRows.forEach(l=>{ leaveByUser[l.staff_user_id]=Number(l.days)||0; });
+    const ptsByUser={}, actualByTeam={};
+    entriesStaff.forEach(e=>{
+      if(e.staff_user_id) ptsByUser[e.staff_user_id]=(ptsByUser[e.staff_user_id]||0)+(e.points||0);
+      if(e.team_id) actualByTeam[e.team_id]=(actualByTeam[e.team_id]||0)+(e.points||0);
+    });
+    const staffByTeam={}, leaveByTeam={}, usersByTeam={};
+    usersFull.forEach(u=>{ if(u.team_id){
+      staffByTeam[u.team_id]=(staffByTeam[u.team_id]||0)+1;
+      leaveByTeam[u.team_id]=(leaveByTeam[u.team_id]||0)+(leaveByUser[u.id]||0);
+      (usersByTeam[u.team_id]=usersByTeam[u.team_id]||[]).push(u);
+    }});
+    const myLeave = leaveByUser[AUTH.user.id]||0;
 
     app.innerHTML="";
     const leadLeave = AUTH.user.role==="team_lead"
@@ -1348,7 +1346,7 @@ async function renderSummary(){
          <button class="btn sec" id="ownLeaveSave" style="width:auto">Save leave</button>
          <span class="muted" id="ownLeaveMsg"></span>` : "";
     const head=el(`<div class="card">
-      <h2 class="sec">📈 Team summary</h2>
+      <h2 class="sec">\u{1F4C8} Team summary</h2>
       <div class="row" style="align-items:flex-end;gap:14px;flex-wrap:wrap">
         <div><label>Month</label><input type="month" id="mSel" value="${mk}"></div>
         ${leadLeave}
@@ -1382,53 +1380,63 @@ async function renderSummary(){
         return;
       }
     }
+    const role=AUTH.user.role;
 
-    const tbl=el(`<div class="card"><table>
-      <thead><tr><th>Team</th><th class="num">Staff</th><th class="num">Target</th><th class="num">Actual</th><th>Flag</th></tr></thead>
-      <tbody id="sumBody"></tbody></table></div>`);
-    app.appendChild(tbl);
-    const body=tbl.querySelector("#sumBody");
+    /* ---- team summary table (Team | Staff | Leave | Target | Actual | Flag) ---- */
     let tgtSum=0, actSum=0, rowsHtml="";
-    teamsToShow.forEach(t=>{
-      const staff=staffBy[t.id]||0;
-      const actual=actualBy[t.id]||0;
+    function teamRow(t){
+      const staff=staffByTeam[t.id]||0, tleave=leaveByTeam[t.id]||0, actual=actualByTeam[t.id]||0;
       let target=null;
-      if(calRow){
-        const staffDays=calRow.working_days*staff-(leaveBy[t.id]||0);   // working_days already excludes holidays
-        target=Math.max(0, Math.round(teamDaily(t.id)*Math.max(0,staffDays)));
-      }
-      let flag="";
-      if(target!=null){
-        if(actual<target) flag=`<span class="flag below">Below</span>`;
-        else if(actual<=target*1.15) flag=`<span class="flag track">On track</span>`;
-        else flag=`<span class="flag over">Over</span>`;
-        tgtSum+=target; actSum+=actual;
-      }
-      rowsHtml += `<tr>`
-        + `<td><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</td>`
-        + `<td class="num">${staff}</td>`
-        + `<td class="num">${target==null?"—":target}</td>`
-        + `<td class="num"><b>${actual}</b></td>`
-        + `<td>${flag}</td></tr>`;
-    });
+      if(calRow){ const staffDays=calRow.working_days*staff - tleave; target=Math.max(0,Math.round(teamDaily(t.id)*Math.max(0,staffDays))); }
+      if(target!=null){ tgtSum+=target; actSum+=actual; }
+      rowsHtml += `<tr><td><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</td>`
+        + `<td class="num">${staff}</td><td class="num">${tleave}</td>`
+        + `<td class="num">${target==null?"—":target}</td><td class="num"><b>${actual}</b></td>`
+        + `<td>${flagFor(actual,target)}</td></tr>`;
+    }
+    if(role==="admin"){
+      S.units.forEach(unit=>{ const uts=teamsToShow.filter(t=>t.unit_id===unit.id); if(!uts.length) return;
+        rowsHtml += `<tr><td colspan="6" style="font-weight:700;padding-top:10px">\u{1F3E2} ${esc(unit.name)} — ${uts.length} team${uts.length>1?"s":""}</td></tr>`;
+        uts.forEach(teamRow); });
+      const orph=teamsToShow.filter(t=>!S.units.find(u=>u.id===t.unit_id));
+      if(orph.length){ rowsHtml += `<tr><td colspan="6" style="font-weight:700;padding-top:10px">\u{1F3E2} No unit — ${orph.length} team${orph.length>1?"s":""}</td></tr>`; orph.forEach(teamRow); }
+    } else {
+      teamsToShow.forEach(teamRow);
+    }
     if(calRow && teamsToShow.length>1){
-      rowsHtml += `<tr><td><b>Total</b></td><td class="num"></td>`
+      rowsHtml += `<tr><td><b>Total</b></td><td class="num"></td><td class="num"></td>`
         + `<td class="num"><b>${tgtSum}</b></td><td class="num"><b>${actSum}</b></td><td></td></tr>`;
     }
-    body.innerHTML = rowsHtml;
+    const tbl=el(`<div class="card"><div style="overflow-x:auto"><table>
+      <thead><tr><th>Team</th><th class="num">Staff</th><th class="num">Leave</th><th class="num">Target</th><th class="num">Actual</th><th>Flag</th></tr></thead>
+      <tbody>${rowsHtml}</tbody></table></div></div>`);
+    app.appendChild(tbl);
 
-    const dcard=el(`<div class="card">
-      <button class="btn" id="detailBtn" style="width:auto">📋 Detail</button>
-      <div id="detailBox" class="hide" style="margin-top:12px"></div>
-    </div>`);
-    app.appendChild(dcard);
-    const _db=dcard.querySelector("#detailBtn"), _dbox=dcard.querySelector("#detailBox");
-    _db.onclick=async()=>{
-      if(!_dbox.classList.contains("hide")){ _dbox.classList.add("hide"); _db.textContent="📋 Detail"; return; }
-      _dbox.classList.remove("hide"); _db.textContent="📋 Hide detail"; _dbox.innerHTML="<div class='center'><span class='spin'></span></div>";
-      try{ _dbox.innerHTML=await membersDetailHtml(mk, calRow, teamsToShow, AUTH.user.role); }
-      catch(e){ _dbox.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+    /* ---- staff listing with per-staff Detail popup ---- */
+    const listCard=el(`<div class="card"><h2 class="sec">\u{1F465} Staff detail</h2><div id="staffWrap"></div></div>`);
+    app.appendChild(listCard);
+    const wrap=listCard.querySelector("#staffWrap");
+    const teamStaffBlock=(t)=>{
+      const members=usersByTeam[t.id]||[];
+      return `<h3 style="margin:14px 0 6px"><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)} <span class="muted">(${members.length} staff)</span></h3>`
+        + staffTableHtml(members, calRow, ptsByUser, leaveByUser);
     };
+    let shtml="";
+    if(role==="team_lead"){
+      const t=teamsToShow[0];
+      shtml = staffTableHtml(usersByTeam[t.id]||[], calRow, ptsByUser, leaveByUser);
+    } else if(role==="admin"){
+      S.units.forEach(unit=>{ const uts=teamsToShow.filter(t=>t.unit_id===unit.id); if(!uts.length) return;
+        shtml += `<h2 class="sec" style="margin:16px 0 6px">\u{1F3E2} ${esc(unit.name)} — ${uts.length} team${uts.length>1?"s":""}</h2>`;
+        uts.forEach(t=>{ shtml += teamStaffBlock(t); }); });
+      const orph=teamsToShow.filter(t=>!S.units.find(u=>u.id===t.unit_id));
+      if(orph.length){ shtml += `<h2 class="sec" style="margin:16px 0 6px">\u{1F3E2} No unit — ${orph.length} team${orph.length>1?"s":""}</h2>`; orph.forEach(t=>{ shtml += teamStaffBlock(t); }); }
+    } else {
+      teamsToShow.forEach(t=>{ shtml += teamStaffBlock(t); });
+    }
+    wrap.innerHTML=shtml;
+    const umap={}; usersFull.forEach(u=>{ umap[u.id]=u; });
+    wrap.querySelectorAll("button[data-uid]").forEach(b=>{ b.onclick=()=>showStaffDetailModal(umap[parseInt(b.getAttribute("data-uid"),10)], mk); });
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
 
