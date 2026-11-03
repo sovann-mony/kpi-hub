@@ -1513,7 +1513,7 @@ async function adUsers(host){
         }catch(e){ b.disabled=false; alert("Error: "+e.message); }
       };
       row.querySelector("[data-pw]").onclick=async()=>{
-        if(!(await askConfirm('Reset password for "'+(u.name||u.username)+'"? A new password will be generated, and they will set their own at next login.',{title:'Reset password',ok:'Reset'}))) return;
+        if(!(await askConfirm('Reset password for "'+(u.name||u.username)+'"? A new password is generated (this also unlocks the account if it was locked), and they set their own at next login.',{title:'Reset password',ok:'Reset'}))) return;
         const np=genUserPass();
         try{
           await saveU({p_password:np});
