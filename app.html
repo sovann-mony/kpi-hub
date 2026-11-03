@@ -836,8 +836,10 @@ async function renderMine(silent){
     let noScope=false;
     if(role==="officer"){ params.push("staff_user_id=eq."+AUTH.user.id); }
     else if(f.user){ params.push("staff_user_id=eq."+parseInt(f.user,10)); }
-    else if(qTeamIds.length){ params.push("team_id=in.("+qTeamIds.join(",")+")"); }
-    else { noScope=true; }
+    else {
+      const restrict = (role!=="admin") || f.unit || f.team;   // admin with no filter sees ALL entries
+      if(restrict){ if(qTeamIds.length) params.push("team_id=in.("+qTeamIds.join(",")+")"); else noScope=true; }
+    }
 
     const rows = noScope? [] : await sbGet("entries?"+params.join("&"));
     const totalPts = rows.reduce((a,e)=>a+(e.points||0),0);
