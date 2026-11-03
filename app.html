@@ -1203,9 +1203,13 @@ async function renderOwnSummary(mk, from, to){
   app.innerHTML="";
   const head=el(`<div class="card">
     <h2 class="sec">📈 My summary</h2>
-    <label>Month</label>
-    <input type="month" id="mSel" value="${mk}">
-    <span class="muted" style="margin-left:8px">${target!=null?("target "+target+" pts"):"month not set in Admin"}</span>
+    <div class="row" style="align-items:flex-end;gap:14px;flex-wrap:wrap">
+      <div><label>Month</label><input type="month" id="mSel" value="${mk}"></div>
+      <div><label>My leave (days)</label><input type="number" id="ownLeave" min="0" step="0.5" value="${leaveDays}" style="max-width:120px"></div>
+      <button class="btn sec" id="ownLeaveSave" style="width:auto">Save leave</button>
+      <span class="muted" id="ownLeaveMsg"></span>
+    </div>
+    <p class="muted" style="margin-top:10px">${target!=null?("Target "+target+" pts — "+daily+" pts × working days − your leave ("+leaveDays+"d)"):"Month not set in Admin"}</p>
   </div>`);
   app.appendChild(head);
   document.getElementById("mSel").onchange=(e)=>{S._month=e.target.value;renderSummary();};
@@ -1216,15 +1220,9 @@ async function renderOwnSummary(mk, from, to){
       <div class="barval">${myPts}</div>
       ${flagHtml}
     </div>
-    <p class="muted" style="margin:10px 0 0">Your points for ${esc(mLabel)} vs your target (${daily} pts × working days − your leave).</p>
-  </div>`));
-  app.appendChild(el(`<div class="card">
-    <div class="row" style="align-items:flex-end;gap:10px;flex-wrap:wrap">
-      <div><label>My leave (days) — ${esc(mLabel)}</label><input type="number" id="ownLeave" min="0" step="0.5" value="${leaveDays}" style="max-width:150px"></div>
-      <button class="btn sec" id="ownLeaveSave" style="width:auto">Save leave</button>
-      <span class="muted" id="ownLeaveMsg"></span>
-    </div>
-    <p class="muted" style="margin:8px 0 0">Each leave day lowers your monthly target by ${daily} pts.</p>
+    <p class="muted" style="margin:10px 0 12px">Your points for ${esc(mLabel)} vs your target (${daily} pts × working days − your leave).</p>
+    <button class="btn" id="detailBtn" style="width:auto">📋 Detail</button>
+    <div id="detailBox" class="hide" style="margin-top:12px"></div>
   </div>`));
   const _lv=document.getElementById("ownLeaveSave");
   if(_lv) _lv.onclick=async()=>{
@@ -1238,6 +1236,69 @@ async function renderOwnSummary(mk, from, to){
       renderSummary();
     }catch(e){ msg.textContent="Error: "+e.message; _lv.disabled=false; _lv.textContent="Save leave"; }
   };
+  const _db=document.getElementById("detailBtn"), _dbox=document.getElementById("detailBox");
+  if(_db) _db.onclick=async()=>{
+    if(!_dbox.classList.contains("hide")){ _dbox.classList.add("hide"); _db.textContent="📋 Detail"; return; }
+    _dbox.classList.remove("hide"); _db.textContent="📋 Hide detail"; _dbox.innerHTML="<div class='center'><span class='spin'></span></div>";
+    try{ _dbox.innerHTML=await ownDetailHtml(mk); }
+    catch(e){ _dbox.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+  };
+}
+
+/* ---- detail builders (used by the Detail button on Summary) ---- */
+async function ownDetailHtml(mk){
+  const from=mk+"-01", to=nextMonthStart(mk);
+  const es=await sbGet(`entries?staff_user_id=eq.${AUTH.user.id}&start_date=gte.${from}&start_date=lt.${to}&select=start_date,points&limit=5000`);
+  const [y,m]=mk.split("-").map(Number);
+  const days=new Date(y,m,0).getDate();
+  const taskBy={}, ptBy={};
+  es.forEach(e=>{ const d=String(e.start_date).slice(0,10); taskBy[d]=(taskBy[d]||0)+1; ptBy[d]=(ptBy[d]||0)+(e.points||0); });
+  let rows="", tTask=0, tPts=0;
+  for(let dd=1;dd<=days;dd++){
+    const ds=`${mk}-${pad2(dd)}`;
+    const tk=taskBy[ds]||0, pt=ptBy[ds]||0; tTask+=tk; tPts+=pt;
+    rows+=`<tr${tk?"":" class='muted'"}><td class="nowrap">${fmtDate(ds)}</td><td class="num">${tk}</td><td class="num">${pt}</td></tr>`;
+  }
+  return `<h3 style="margin:0 0 8px">Daily detail — ${esc(mk)}</h3>
+    <div style="overflow-x:auto"><table class="etable">
+      <thead><tr><th>Date</th><th class="num">Tasks</th><th class="num">Points</th></tr></thead>
+      <tbody>${rows}<tr><td><b>Total</b></td><td class="num"><b>${tTask}</b></td><td class="num"><b>${tPts}</b></td></tr></tbody>
+    </table></div>`;
+}
+async function membersDetailHtml(mk, calRow, teamsToShow, role){
+  const teamIds=teamsToShow.map(t=>t.id);
+  if(!teamIds.length) return "<p class='muted'>No teams to show.</p>";
+  const from=mk+"-01", to=nextMonthStart(mk);
+  const us=await sbGet(`users?select=id,name,username,team_id,role&active=eq.true&team_id=in.(${teamIds.join(",")})&order=name`);
+  const es=await sbGet(`entries?select=staff_user_id,points&start_date=gte.${from}&start_date=lt.${to}&team_id=in.(${teamIds.join(",")})&limit=5000`);
+  const lv=await sbGet(`leaves?month=eq.${mk}&select=staff_user_id,days`);
+  const ptBy={}, lvBy={};
+  es.forEach(e=>{ if(e.staff_user_id) ptBy[e.staff_user_id]=(ptBy[e.staff_user_id]||0)+(e.points||0); });
+  lv.forEach(l=>{ lvBy[l.staff_user_id]=Number(l.days)||0; });
+  const wd = calRow? calRow.working_days : null;
+  function userRow(u){
+    const pts=ptBy[u.id]||0;
+    const eff = wd!=null? Math.max(0, wd-(lvBy[u.id]||0)) : null;
+    const tgt = eff!=null? Math.round(teamDaily(u.team_id)*eff) : null;
+    let flag="";
+    if(tgt!=null){ if(pts<tgt) flag='<span class="flag below">Below</span>'; else if(pts<=tgt*1.15) flag='<span class="flag track">On track</span>'; else flag='<span class="flag over">Over</span>'; }
+    const tag = u.role==="team_lead"?' <span class="muted">(Lead)</span>':(u.role==="manager"?' <span class="muted">(Manager)</span>':'');
+    return `<tr><td>${esc(u.name||u.username||("User "+u.id))}${tag}</td><td class="num">${pts}</td><td class="num">${tgt==null?"—":tgt}</td><td>${flag}</td></tr>`;
+  }
+  const thead=`<thead><tr><th>User</th><th class="num">Points</th><th class="num">Target</th><th>Flag</th></tr></thead>`;
+  if(role==="team_lead"){
+    return `<h3 style="margin:0 0 8px">My team — members vs target</h3>
+      <div style="overflow-x:auto"><table class="etable">${thead}<tbody>${us.map(userRow).join("")||`<tr><td colspan="4" class="muted">No users.</td></tr>`}</tbody></table></div>`;
+  }
+  let html="";
+  teamsToShow.forEach(t=>{
+    const members=us.filter(u=>u.team_id===t.id);
+    html += `<h3 style="margin:14px 0 6px"><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</h3>`;
+    html += members.length
+      ? `<div style="overflow-x:auto"><table class="etable">${thead}<tbody>${members.map(userRow).join("")}</tbody></table></div>`
+      : `<p class="muted" style="margin:0 0 6px">No users in this team.</p>`;
+  });
+  return html;
 }
 async function renderSummary(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
@@ -1315,6 +1376,19 @@ async function renderSummary(){
         + `<td class="num"><b>${tgtSum}</b></td><td class="num"><b>${actSum}</b></td><td></td></tr>`;
     }
     body.innerHTML = rowsHtml;
+
+    const dcard=el(`<div class="card">
+      <button class="btn" id="detailBtn" style="width:auto">📋 Detail</button>
+      <div id="detailBox" class="hide" style="margin-top:12px"></div>
+    </div>`);
+    app.appendChild(dcard);
+    const _db=dcard.querySelector("#detailBtn"), _dbox=dcard.querySelector("#detailBox");
+    _db.onclick=async()=>{
+      if(!_dbox.classList.contains("hide")){ _dbox.classList.add("hide"); _db.textContent="📋 Detail"; return; }
+      _dbox.classList.remove("hide"); _db.textContent="📋 Hide detail"; _dbox.innerHTML="<div class='center'><span class='spin'></span></div>";
+      try{ _dbox.innerHTML=await membersDetailHtml(mk, calRow, teamsToShow, AUTH.user.role); }
+      catch(e){ _dbox.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+    };
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
 
