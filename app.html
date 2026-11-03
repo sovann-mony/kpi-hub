@@ -1409,8 +1409,13 @@ async function adUsers(host){
         }catch(e){ b.disabled=false; alert("Error: "+e.message); }
       };
       row.querySelector("[data-pw]").onclick=async()=>{
-        const np=prompt("New password for "+(u.name||u.username)+":"); if(!np) return;
-        try{ await saveU({p_password:np}); alert("Password updated for "+(u.name||u.username)+"."); }catch(e){ alert("Error: "+e.message); }
+        if(!(await askConfirm('Reset password for "'+(u.name||u.username)+'"? A new password will be generated, and they will set their own at next login.',{title:'Reset password',ok:'Reset'}))) return;
+        const np=genUserPass();
+        try{
+          await saveU({p_password:np});
+          try{ await sbRpc("app_flag_pw_change",{p_username:u.username}); }catch(e){}
+          showCredsModal("Password reset", u.name, u.username, np, null);
+        }catch(e){ alert("Error: "+e.message); }
       };
       const tbtn=row.querySelector("[data-term]");
       if(tbtn) tbtn.onclick=async()=>{ if(!(await askConfirm('Terminate "'+(u.name||u.username)+'"? They can no longer log in. Their records are kept and you can reactivate later.'))) return;
