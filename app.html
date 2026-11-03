@@ -810,158 +810,154 @@ async function saveEntry(){
 /* ============================================================
    MY ENTRIES
    ============================================================ */
-async function renderMine(mk, silent){
-  const curMk = mk || S._mineMonth || monthKey(new Date());
-  S._mineMonth = curMk;
+function firstOfMonthISO(){ const d=new Date(); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-01"; }
+async function renderMine(silent){
+  const role = AUTH.user.role;
+  if(!S._mine) S._mine={ from:firstOfMonthISO(), to:todayISO(), unit:"", team:"", user:"" };
+  const f=S._mine;
   if(!silent) app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
-    const parts=curMk.split("-"); const y=+parts[0], m=+parts[1];
-    const from=`${curMk}-01`, to=nextMonthStart(curMk);
-    const rows=await sbGet("entries?staff_user_id=eq."+AUTH.user.id+"&start_date=gte."+from+"&start_date=lt."+to+"&select=*,support_types(name)&order=start_date.desc,created_at.desc&limit=500");
-    const myPts=rows.reduce((a,e)=>a+(e.points||0),0);
-    const cal=(await sbGet(`month_calendar?select=working_days&month=eq.${curMk}`))[0];
-    const lv=(await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk+"&select=days"))[0];
-    const leaveDays=lv?(Number(lv.days)||0):0;
-    const daily=teamDaily(AUTH.user.team_id);
-    const effDays=cal?Math.max(0,cal.working_days-leaveDays):null;
-    const target=effDays!=null?daily*effDays:null;
-    const mLabel=new Date(y,m-1,1).toLocaleString('en',{month:'short',year:'numeric'});
-    const max = target? Math.max(target,myPts)*1.1 : Math.max(myPts,1);
-    const pct = target? Math.min(100,Math.round(myPts/max*100)) : (myPts>0?100:0);
-    const tpos = target? Math.round(target/max*100) : 0;
-    let flagHtml="", fillColor="var(--accent)";
-    if(target!=null){
-      if(myPts<target){ flagHtml='<span class="flag below">Below</span>'; fillColor="var(--bad)"; }
-      else if(myPts<=target*1.15){ flagHtml='<span class="flag track">On track</span>'; fillColor="var(--ok)"; }
-      else { flagHtml='<span class="flag over">Over</span>'; fillColor="var(--warn)"; }
-    }
+    let users=[];
+    if(role!=="officer"){ users=await sbGet("users?select=id,name,username,team_id,role&active=eq.true&order=name"); }
+
+    // teams this role may see
+    let scopeTeamIds=[];
+    if(role==="team_lead") scopeTeamIds = AUTH.user.team_id?[AUTH.user.team_id]:[];
+    else if(role==="manager"){ const mt=S.teams.find(t=>t.id===AUTH.user.team_id); const mu=mt?mt.unit_id:null; scopeTeamIds = mu? S.teams.filter(t=>t.unit_id===mu).map(t=>t.id):[]; }
+    else if(role==="admin") scopeTeamIds = S.teams.map(t=>t.id);
+
+    // teams to query after filters
+    let qTeamIds = scopeTeamIds.slice();
+    if(role==="admin" && f.unit){ const uid=parseInt(f.unit,10); qTeamIds = S.teams.filter(t=>t.unit_id===uid).map(t=>t.id); }
+    if(f.team){ qTeamIds=[parseInt(f.team,10)]; }
+
+    // build query
+    const params=["start_date=gte."+f.from,"start_date=lte."+f.to,"select=*,support_types(name)","order=start_date.desc,created_at.desc","limit=1000"];
+    let noScope=false;
+    if(role==="officer"){ params.push("staff_user_id=eq."+AUTH.user.id); }
+    else if(f.user){ params.push("staff_user_id=eq."+parseInt(f.user,10)); }
+    else if(qTeamIds.length){ params.push("team_id=in.("+qTeamIds.join(",")+")"); }
+    else { noScope=true; }
+
+    const rows = noScope? [] : await sbGet("entries?"+params.join("&"));
+    const totalPts = rows.reduce((a,e)=>a+(e.points||0),0);
+
     app.innerHTML="";
-    // --- My performance ---
-    const leaveLbl = leaveDays>0?(" · "+leaveDays+" leave day"+(leaveDays>1?"s":"")):"";
-    app.appendChild(el(`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-        <h2 class="sec">📈 My performance</h2>
-        <div class="row" style="align-items:center;gap:8px;margin:0">
-          <input type="month" id="mineMonth" value="${curMk}" style="max-width:160px">
-          <span class="muted">${target!=null?("target "+target+" pts"):"month not set in Admin"}${leaveLbl}</span>
-        </div>
-      </div>
-      <div class="perfrow">
-        <div class="barlbl">${esc(AUTH.user.name||AUTH.user.username)}</div>
-        <div class="bartrack">${target!=null?`<div class="bar-target" style="left:${tpos}%"></div>`:""}<div class="barfill" style="width:${pct}%;background:${fillColor}"></div></div>
-        <div class="barval">${myPts}</div>
-        ${flagHtml}
-      </div>
-      <div class="row" style="align-items:flex-end;gap:10px;margin-top:12px">
-        <div><label>My leave (days) — ${esc(mLabel)}</label><input type="number" id="mineLeave" min="0" step="0.5" value="${leaveDays}" style="max-width:130px"></div>
-        <button class="btn sec" id="mineLeaveSave" style="width:auto">Save leave</button>
-        <span class="muted" id="mineLeaveMsg"></span>
-      </div>
-      <p class="muted" style="margin:8px 0 0">Target = ${daily} pts × (working days − leave days). Each leave day lowers your monthly target by ${daily} pts.</p>
-    </div>`));
-    // wire month filter + leave save (before any early return so they always work)
-    const mSel=document.getElementById("mineMonth");
-    if(mSel) mSel.onchange=()=>renderMine(mSel.value, true);
-    const lvSave=document.getElementById("mineLeaveSave");
-    if(lvSave) lvSave.onclick=async()=>{
-      const d=Math.max(0,Number(document.getElementById("mineLeave").value)||0);
-      const lmsg=document.getElementById("mineLeaveMsg");
-      lvSave.disabled=true; lvSave.textContent="Saving…";
-      try{
-        const ex=await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk+"&select=id");
-        if(ex.length) await sbPatch("leaves","staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk,{days:d});
-        else await sbInsert("leaves",{staff_user_id:AUTH.user.id,month:curMk,days:d});
-        renderMine(curMk, true);
-      }catch(e){ lmsg.textContent="Error: "+e.message; lvSave.disabled=false; lvSave.textContent="Save leave"; }
-    };
-    // --- My entries (single rows) ---
-    const listCard=el(`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-        <h2 class="sec">📋 My entries — ${esc(mLabel)}</h2>
-        <span class="muted">${rows.length} in ${esc(mLabel)} · set to Done to complete (Done is final)</span>
-      </div>
-      <div style="overflow-x:auto;margin-top:8px"><table class="etable">
-        <thead>
-          <tr><th class="nowrap">Start date</th><th>Task</th><th>Contact</th><th>Support type</th><th>Remark</th><th class="nowrap">Resolved</th><th>Status</th><th style="text-align:right"><button class="iconbtn" id="mineSearchBtn" title="Search entries">🔍</button></th></tr>
-          <tr id="mineFilterRow" class="hide">
-            <th><input class="fsearch" data-col="0" placeholder="Search"></th>
-            <th><input class="fsearch" data-col="1" placeholder="Search"></th>
-            <th><input class="fsearch" data-col="2" placeholder="Search"></th>
-            <th><input class="fsearch" data-col="3" placeholder="Search"></th>
-            <th><input class="fsearch" data-col="4" placeholder="Search"></th>
-            <th><input class="fsearch" data-col="5" placeholder="Search"></th>
-            <th><input class="fsearch" data-col="6" placeholder="Search"></th>
-            <th style="text-align:right"><button class="iconbtn" id="mineFilterClear" title="Clear search">✕</button></th>
-          </tr>
-        </thead>
-        <tbody id="eList"></tbody></table></div></div>`);
+
+    // users available for the User dropdown (within current team/unit scope)
+    const userScope = qTeamIds;
+    const userOpts = users.filter(u=> userScope.indexOf(u.team_id)>=0 ).map(u=>({v:u.id,t:(u.name||u.username||("User "+u.id))}));
+    function optList(items, selId, allLabel){
+      return '<option value="">'+esc(allLabel)+'</option>'+items.map(it=>`<option value="${it.v}" ${String(it.v)===String(selId)?"selected":""}>${esc(it.t)}</option>`).join("");
+    }
+    let ctrls="";
+    if(role==="team_lead"){
+      ctrls += `<div><label>Team</label><input value="${esc(teamName(AUTH.user.team_id))}" readonly></div>`;
+      ctrls += `<div><label>Officer</label><select id="mf_user">${optList(userOpts,f.user,"All officers")}</select></div>`;
+    } else if(role==="manager"){
+      const unitTeamOpts=scopeTeamIds.map(id=>({v:id,t:teamName(id)}));
+      ctrls += `<div><label>Team</label><select id="mf_team">${optList(unitTeamOpts,f.team,"All teams")}</select></div>`;
+      ctrls += `<div><label>User</label><select id="mf_user">${optList(userOpts,f.user,"All users")}</select></div>`;
+    } else if(role==="admin"){
+      const unitOpts=S.units.map(u=>({v:u.id,t:u.name}));
+      const teamOptsA=(f.unit? S.teams.filter(t=>t.unit_id===parseInt(f.unit,10)) : S.teams).map(t=>({v:t.id,t:t.name}));
+      ctrls += `<div><label>Unit</label><select id="mf_unit">${optList(unitOpts,f.unit,"All units")}</select></div>`;
+      ctrls += `<div><label>Team</label><select id="mf_team">${optList(teamOptsA,f.team,"All teams")}</select></div>`;
+      ctrls += `<div><label>User</label><select id="mf_user">${optList(userOpts,f.user,"All users")}</select></div>`;
+    }
+    ctrls += `<div><label>From date</label><input type="date" id="mf_from" value="${esc(f.from)}"></div>`;
+    ctrls += `<div><label>To date</label><input type="date" id="mf_to" value="${esc(f.to)}"></div>`;
+
+    const filtCard=el(`<div class="card">
+      <h2 class="sec">\u{1F4CB} ${role==="officer"?"My entries":"Entries"}</h2>
+      <div class="grid2">${ctrls}</div>
+      <p class="muted" style="margin-top:10px">${rows.length} entr${rows.length===1?"y":"ies"} · ${totalPts} pts</p>
+    </div>`);
+    app.appendChild(filtCard);
+
+    const wire=(id,key,resetKeys)=>{ const e2=document.getElementById(id); if(e2) e2.onchange=()=>{ f[key]=e2.value; (resetKeys||[]).forEach(k=>f[k]=""); renderMine(true); }; };
+    wire("mf_unit","unit",["team","user"]);
+    wire("mf_team","team",["user"]);
+    wire("mf_user","user",[]);
+    wire("mf_from","from",[]);
+    wire("mf_to","to",[]);
+
+    // table
+    const showStaff = role!=="officer";
+    const showTeamCol = (role==="manager"||role==="admin");
+    let headCols="";
+    if(showStaff) headCols+="<th>Staff</th>";
+    if(showTeamCol) headCols+="<th>Team</th>";
+    headCols+=`<th class="nowrap">Start date</th><th>Task</th>`;
+    if(role==="officer") headCols+="<th>Contact</th>";
+    headCols+=`<th>Support type</th>`;
+    if(role==="officer"||role==="team_lead") headCols+="<th>Remark</th>";
+    headCols+=`<th class="nowrap">Resolved</th><th>Status</th>`;
+    if(role==="officer"||role==="admin") headCols+="<th></th>";
+    const colCount=(headCols.match(/<th/g)||[]).length;
+
+    const listCard=el(`<div class="card"><div style="overflow-x:auto"><table class="etable">
+      <thead><tr>${headCols}</tr></thead><tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
-    (function(){
-      const searchBtn=listCard.querySelector("#mineSearchBtn");
-      const filterRow=listCard.querySelector("#mineFilterRow");
-      if(!filterRow) return;
-      const applyMineFilter=function(){
-        const fs=[];
-        filterRow.querySelectorAll("input.fsearch").forEach(function(i){ const v=i.value.trim().toLowerCase(); if(v) fs.push([i.getAttribute("data-col"), v]); });
-        list.querySelectorAll("tr").forEach(function(tr){
-          let show=true;
-          for(const f of fs){ if((tr.getAttribute("data-s"+f[0])||"").indexOf(f[1])<0){ show=false; break; } }
-          tr.style.display = show?"":"none";
-        });
-      };
-      if(searchBtn) searchBtn.onclick=function(){
-        filterRow.classList.toggle("hide");
-        if(!filterRow.classList.contains("hide")){ const f=filterRow.querySelector("input"); if(f) f.focus(); }
-        else { filterRow.querySelectorAll("input").forEach(function(i){ i.value=""; }); applyMineFilter(); }
-      };
-      filterRow.querySelectorAll("input.fsearch").forEach(function(i){ i.oninput=applyMineFilter; });
-      const clr=listCard.querySelector("#mineFilterClear");
-      if(clr) clr.onclick=function(){ filterRow.querySelectorAll("input").forEach(function(i){ i.value=""; }); applyMineFilter(); };
-    })();
-    if(!rows.length){ list.innerHTML="<tr><td colspan='8' class='center'>No entries for "+esc(mLabel)+".</td></tr>"; return; }
-    let rowsHtml="";
+    if(!rows.length){ list.innerHTML="<tr><td colspan='"+colCount+"' class='center'>No entries for this filter.</td></tr>"; return; }
+
+    const byId={}; rows.forEach(r=>byId[r.id]=r);
+    let html="";
     rows.forEach(r=>{
       const stc = r.status==="Done"?"done":(r.status==="In Progress"?"progress":"pending");
       const sup = r.support_types?r.support_types.name:"";
-      rowsHtml += `<tr data-s0="${esc(String(fmtDate(r.start_date)).toLowerCase())}" data-s1="${esc(String(r.merchant_name||"").toLowerCase())}" data-s2="${esc(String(r.contact||"").toLowerCase())}" data-s3="${esc(String(sup||"").toLowerCase())}" data-s4="${esc(String(r.remark||"").toLowerCase())}" data-s5="${esc(String(fmtDate(r.resolved_date)).toLowerCase())}" data-s6="${esc(String(r.status||"").toLowerCase())}">`
-        + `<td class="nowrap">${esc(fmtDate(r.start_date))}</td>`
-        + `<td><b>${esc(r.merchant_name||"—")}</b></td>`
-        + `<td>${esc(r.contact||"N/A")}</td>`
-        + `<td>${esc(sup||"—")}</td>`
-        + `<td class="rem">${esc(r.remark||"—")}</td>`
-        + `<td class="nowrap">${esc(fmtDate(r.resolved_date))}</td>`
-        + `<td>${ r.status==="Done"
-            ? `<span class="statsel done" title="Completed — cannot be changed">Done</span>`
-            : `<select class="statsel ${stc}" data-id="${r.id}">`
-                + `<option${r.status==="Pending"?" selected":""}>Pending</option>`
-                + `<option${r.status==="In Progress"?" selected":""}>In Progress</option>`
-                + `<option>Done</option>`
-              + `</select>` }</td>`
-        + `<td><div class="uact"><button class="iconbtn" data-edit="${r.id}" title="Edit entry">✏️</button></div></td></tr>`;
+      html+="<tr>";
+      if(showStaff) html+=`<td>${esc(r.staff_name||"—")}</td>`;
+      if(showTeamCol) html+=`<td>${esc(teamName(r.team_id))}</td>`;
+      html+=`<td class="nowrap">${esc(fmtDate(r.start_date))}</td>`;
+      html+=`<td><b>${esc(r.merchant_name||"—")}</b></td>`;
+      if(role==="officer") html+=`<td>${esc(r.contact||"N/A")}</td>`;
+      html+=`<td>${esc(sup||"—")}</td>`;
+      if(role==="officer"||role==="team_lead") html+=`<td class="rem">${esc(r.remark||"—")}</td>`;
+      html+=`<td class="nowrap">${esc(fmtDate(r.resolved_date))}</td>`;
+      if(role==="officer"){
+        html+=`<td>${ r.status==="Done"
+          ? `<span class="statsel done" title="Completed — cannot be changed">Done</span>`
+          : `<select class="statsel ${stc}" data-id="${r.id}"><option${r.status==="Pending"?" selected":""}>Pending</option><option${r.status==="In Progress"?" selected":""}>In Progress</option><option>Done</option></select>` }</td>`;
+      } else {
+        html+=`<td><span class="statsel ${stc}">${esc(r.status||"—")}</span></td>`;
+      }
+      if(role==="officer") html+=`<td><div class="uact"><button class="iconbtn" data-edit="${r.id}" title="Edit entry">✏️</button></div></td>`;
+      else if(role==="admin") html+=`<td><div class="uact"><button class="iconbtn danger" data-del="${r.id}" title="Delete entry">\u{1F5D1}️</button></div></td>`;
+      html+="</tr>";
     });
-    list.innerHTML = rowsHtml;
-    const byId={}; rows.forEach(r=>byId[r.id]=r);
-    list.querySelectorAll("select[data-id]").forEach(sel=>{
-      const r=byId[parseInt(sel.getAttribute("data-id"),10)];
-      sel.onchange=async()=>{
-        const next=sel.value;
-        if(next==="Done"){
-          const def=(r.resolved_date? String(r.resolved_date).slice(0,10) : todayISO());
-          const rd=await askResolvedDate(def, r.remark);
-          if(!rd){ sel.value=r.status; return; }   // cancelled → keep previous status
-          try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd.date,remark:(rd.remark||null)}); r.status="Done"; r.resolved_date=rd.date; r.remark=rd.remark||null; renderMine(curMk, true); }
+    list.innerHTML=html;
+
+    if(role==="officer"){
+      list.querySelectorAll("select[data-id]").forEach(sel=>{
+        const r=byId[parseInt(sel.getAttribute("data-id"),10)];
+        sel.onchange=async()=>{
+          const next=sel.value;
+          if(next==="Done"){
+            const def=(r.resolved_date? String(r.resolved_date).slice(0,10):todayISO());
+            const rd=await askResolvedDate(def, r.remark);
+            if(!rd){ sel.value=r.status; return; }
+            try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd.date,remark:(rd.remark||null)}); renderMine(true); }
+            catch(e){ alert("Error: "+e.message); sel.value=r.status; }
+            return;
+          }
+          try{ await sbPatch("entries","id=eq."+r.id,{status:next,resolved_date:null}); renderMine(true); }
           catch(e){ alert("Error: "+e.message); sel.value=r.status; }
-          return;
-        }
-        try{ await sbPatch("entries","id=eq."+r.id,{status:next,resolved_date:null}); r.status=next; r.resolved_date=null; renderMine(curMk, true); }
-        catch(e){ alert("Error: "+e.message); sel.value=r.status; }
-      };
-    });
-    list.querySelectorAll("button[data-edit]").forEach(btn=>{
-      const r=byId[parseInt(btn.getAttribute("data-edit"),10)];
-      btn.onclick=()=>editEntry(r);
-    });
+        };
+      });
+      list.querySelectorAll("button[data-edit]").forEach(btn=>{ const r=byId[parseInt(btn.getAttribute("data-edit"),10)]; btn.onclick=()=>editEntry(r); });
+    }
+    if(role==="admin"){
+      list.querySelectorAll("button[data-del]").forEach(btn=>{
+        const id=parseInt(btn.getAttribute("data-del"),10);
+        btn.onclick=async()=>{
+          if(!(await askConfirm("Delete this entry permanently? This cannot be undone.",{title:"Delete entry",ok:"Delete",danger:true}))) return;
+          try{ const x=await fetch(REST+"entries?id=eq."+id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); renderMine(true); }
+          catch(e){ alert("Error: "+e.message); }
+        };
+      });
+    }
   }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
 }
 function editEntry(r){
@@ -1015,7 +1011,7 @@ function editEntry(r){
       remark: document.getElementById("ed_remark").value.trim()||null
     };
     const b=document.getElementById("edSave"); b.disabled=true; b.textContent="Saving…";
-    try{ await sbPatch("entries","id=eq."+r.id,body); close(); renderMine(null, true); }
+    try{ await sbPatch("entries","id=eq."+r.id,body); close(); renderMine(true); }
     catch(e){ document.getElementById("edMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save changes"; }
   };
 }
@@ -1184,6 +1180,26 @@ async function renderOwnSummary(mk, from, to){
     </div>
     <p class="muted" style="margin:10px 0 0">Your points for ${esc(mLabel)} vs your target (${daily} pts × working days − your leave).</p>
   </div>`));
+  app.appendChild(el(`<div class="card">
+    <div class="row" style="align-items:flex-end;gap:10px;flex-wrap:wrap">
+      <div><label>My leave (days) — ${esc(mLabel)}</label><input type="number" id="ownLeave" min="0" step="0.5" value="${leaveDays}" style="max-width:150px"></div>
+      <button class="btn sec" id="ownLeaveSave" style="width:auto">Save leave</button>
+      <span class="muted" id="ownLeaveMsg"></span>
+    </div>
+    <p class="muted" style="margin:8px 0 0">Each leave day lowers your monthly target by ${daily} pts.</p>
+  </div>`));
+  const _lv=document.getElementById("ownLeaveSave");
+  if(_lv) _lv.onclick=async()=>{
+    const dd=Math.max(0,Number(document.getElementById("ownLeave").value)||0);
+    const msg=document.getElementById("ownLeaveMsg");
+    _lv.disabled=true; _lv.textContent="Saving…";
+    try{
+      const ex=await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=id");
+      if(ex.length) await sbPatch("leaves","staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk,{days:dd});
+      else await sbInsert("leaves",{staff_user_id:AUTH.user.id,month:mk,days:dd});
+      renderSummary();
+    }catch(e){ msg.textContent="Error: "+e.message; _lv.disabled=false; _lv.textContent="Save leave"; }
+  };
 }
 async function renderSummary(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
