@@ -203,7 +203,7 @@
   .card{transition:box-shadow .2s ease}
 
   /* ===== Staff list: single compact rows ===== */
-  .urow{display:grid;grid-template-columns:1.7fr 1.2fr 1fr auto;gap:12px;align-items:center;padding:11px 6px;border-bottom:1px solid var(--border)}
+  .urow{display:grid;grid-template-columns:1.6fr 1fr 1.1fr 0.9fr auto;gap:12px;align-items:center;padding:11px 6px;border-bottom:1px solid var(--border)}
   .urow:last-child{border-bottom:none}
   .urow.uhead{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border);padding:2px 6px 8px}
   .urow .uname{font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1472,15 +1472,17 @@ async function adUsers(host){
 
     // --- Existing staff (single-row list) ---
     const uc=el(`<div class="card"><h2 class="sec">👥 Users (${users.length})</h2>
-      <div class="urow uhead"><div>Name</div><div>Team</div><div>Role</div><div class="uact">Actions</div></div>
+      <div class="urow uhead"><div>Name</div><div>Unit</div><div>Team</div><div>Role</div><div class="uact">Actions</div></div>
       <div id="uList"></div></div>`);
     host.appendChild(uc);
     const uList=uc.querySelector("#uList");
     users.forEach(u=>{
       const tOpts=S.teams.map(t=>`<option value="${t.id}" ${t.id===u.team_id?"selected":""}>${esc(t.name)}</option>`).join("");
       const rOpts=["officer","team_lead","manager","admin"].map(r=>`<option value="${r}" ${r===u.role?"selected":""}>${roleName[r]}</option>`).join("");
+      const uTeam0=S.teams.find(t=>t.id===u.team_id); const uUnit0=uTeam0?unitName(uTeam0.unit_id):"—";
       const row=el(`<div class="urow${u.active?"":" inactive"}">
         <div class="uname">${esc(u.name||u.username||("User "+u.id))}<span class="muted"> @${esc(u.username||"—")}</span>${u.active?"":' <span class="tag pending">terminated</span>'}</div>
+        <div class="muted" data-uunit>${esc(uUnit0)}</div>
         <div><select data-f="team">${tOpts}</select></div>
         <div><select data-f="role">${rOpts}</select></div>
         <div class="uact">
@@ -1519,8 +1521,11 @@ async function adUsers(host){
         try{ await saveU({p_active:false}); await reloadTeams(); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
       const rbtn=row.querySelector("[data-react]");
       if(rbtn) rbtn.onclick=async()=>{ try{ await saveU({p_active:true}); renderAdmin(true); }catch(e){ alert("Error: "+e.message); } };
+      const teamSel=row.querySelector("[data-f=team]");
+      if(teamSel) teamSel.addEventListener("change",function(){ const tm=S.teams.find(t=>t.id===parseInt(this.value,10)); const c=row.querySelector("[data-uunit]"); if(c) c.textContent = tm?unitName(tm.unit_id):"—"; });
       uList.appendChild(row);
     });
+    host.insertBefore(uc, permc);
 }
 async function adSupport(host){
     const sc=el(`<div class="card"><h2 class="sec">⭐ Support types</h2>
