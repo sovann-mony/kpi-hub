@@ -557,6 +557,7 @@ async function doLogin(){
     const res = normLogin(await sbRpc("app_login",{p_username:u,p_password:p}));
     if(res && res.ok && res.user){
       AUTH.user = res.user; AUTH.pass = p;
+      if(res.user.must_change_password){ renderFirstPassword(); return; }
       ls("kpihub_session", JSON.stringify(AUTH.user));
       startApp();
     }else if(res && res.reason==="locked"){
@@ -571,6 +572,48 @@ async function doLogin(){
   }
 }
 function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); renderLogin(); }
+/* First login: user must set their own password (min 6 chars) before entering. */
+function renderFirstPassword(){
+  nav.classList.add("hide");
+  document.body.classList.add("auth");
+  document.getElementById("who").innerHTML="";
+  app.innerHTML="";
+  const box=el(`<div class="login-box">
+    <div class="brand"><div class="big">${LOGO}<span>KPI&nbsp;Hub</span></div><div class="muted">Set your password</div></div>
+    <div class="card">
+      <h2 class="sec" style="margin:0 0 4px">Create a new password</h2>
+      <p class="muted" style="margin:0 0 12px">For security, please set your own password before continuing. At least 6 characters.</p>
+      <div id="fpcMsg"></div>
+      <label>New password</label>
+      <input id="fpc_p1" type="password" autocomplete="new-password" placeholder="Enter a new password">
+      <label>Confirm new password</label>
+      <input id="fpc_p2" type="password" autocomplete="new-password" placeholder="Re-enter password">
+      <div style="height:12px"></div>
+      <button class="btn" id="fpc_go">Save &amp; continue</button>
+    </div>
+  </div>`);
+  app.appendChild(box);
+  const go=async()=>{
+    const msg=document.getElementById("fpcMsg");
+    const p1=document.getElementById("fpc_p1").value, p2=document.getElementById("fpc_p2").value;
+    if(p1.length<6){ msg.innerHTML="<div class='notice err'>Password must be at least 6 characters.</div>"; return; }
+    if(p1!==p2){ msg.innerHTML="<div class='notice err'>Passwords do not match.</div>"; return; }
+    const b=document.getElementById("fpc_go"); b.disabled=true; b.textContent="Saving…";
+    try{
+      const r=await sbRpc("app_change_password",{p_username:AUTH.user.username,p_current:AUTH.pass,p_newpass:p1});
+      if(r && r.ok){
+        AUTH.pass=p1; AUTH.user.must_change_password=false;
+        ls("kpihub_session", JSON.stringify(AUTH.user));
+        startApp();
+      }else{
+        msg.innerHTML="<div class='notice err'>"+esc((r&&r.error)||"Could not set password.")+"</div>"; b.disabled=false; b.textContent="Save & continue";
+      }
+    }catch(e){ msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save & continue"; }
+  };
+  document.getElementById("fpc_go").onclick=go;
+  document.getElementById("fpc_p2").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  document.getElementById("fpc_p1").focus();
+}
 
 /* ============================================================
    START APP (after login)
@@ -1671,6 +1714,7 @@ async function addStaff(){
       p_team_id: (parseInt(teamVal,10)||null),
       p_role: document.getElementById("a_role").value, p_active:true
     });
+    try{ await sbRpc("app_flag_pw_change",{p_username:user}); }catch(e){}
     showCredsModal("User created", name, user, pass, ()=>renderAdmin(true));
   }catch(e){
     msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>";
@@ -1698,6 +1742,7 @@ async function bulkAdd(){
     try{
       await sbRpc("app_save_user",{p_admin_user:AUTH.user.username,p_admin_pass:AUTH.pass,p_user_id:null,
         p_name:name,p_username:user,p_password:pass,p_team_id:team,p_role:role,p_active:true});
+      try{ await sbRpc("app_flag_pw_change",{p_username:user}); }catch(e){}
       results.push({name,user,pass,ok:true}); ok++;
     }catch(e){ results.push({line,ok:false,err:(e.message||"error")}); }
   }
