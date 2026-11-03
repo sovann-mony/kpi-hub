@@ -1290,14 +1290,31 @@ async function membersDetailHtml(mk, calRow, teamsToShow, role){
     return `<h3 style="margin:0 0 8px">My team — members vs target</h3>
       <div style="overflow-x:auto"><table class="etable">${thead}<tbody>${us.map(userRow).join("")||`<tr><td colspan="4" class="muted">No users.</td></tr>`}</tbody></table></div>`;
   }
-  let html="";
-  teamsToShow.forEach(t=>{
+  const teamBlock=(t)=>{
     const members=us.filter(u=>u.team_id===t.id);
-    html += `<h3 style="margin:14px 0 6px"><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</h3>`;
-    html += members.length
-      ? `<div style="overflow-x:auto"><table class="etable">${thead}<tbody>${members.map(userRow).join("")}</tbody></table></div>`
-      : `<p class="muted" style="margin:0 0 6px">No users in this team.</p>`;
-  });
+    return `<h3 style="margin:14px 0 6px"><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</h3>`
+      + (members.length
+        ? `<div style="overflow-x:auto"><table class="etable">${thead}<tbody>${members.map(userRow).join("")}</tbody></table></div>`
+        : `<p class="muted" style="margin:0 0 6px">No users in this team.</p>`);
+  };
+  let html="";
+  if(role==="admin"){
+    // Units → Teams → Users
+    S.units.forEach(unit=>{
+      const unitTeams=teamsToShow.filter(t=>t.unit_id===unit.id);
+      if(!unitTeams.length) return;
+      html += `<h2 class="sec" style="margin:18px 0 4px">🏢 ${esc(unit.name)}</h2>`;
+      unitTeams.forEach(t=>{ html += teamBlock(t); });
+    });
+    const orphans=teamsToShow.filter(t=>!S.units.find(u=>u.id===t.unit_id));
+    if(orphans.length){
+      html += `<h2 class="sec" style="margin:18px 0 4px">🏢 No unit</h2>`;
+      orphans.forEach(t=>{ html += teamBlock(t); });
+    }
+    return html;
+  }
+  // manager: teams within their unit
+  teamsToShow.forEach(t=>{ html += teamBlock(t); });
   return html;
 }
 async function renderSummary(){
@@ -1315,21 +1332,44 @@ async function renderSummary(){
     const targets = await sbGet(`monthly_targets?select=*&month=eq.${mk}`);
     const daily = parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
     const calRow = cal[0];
+    let myLeave=0;
+    if(AUTH.user.role==="team_lead"){
+      const _l=(await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=days"))[0];
+      myLeave=_l?(Number(_l.days)||0):0;
+    }
     const staffBy={}, actualBy={}, leaveBy={};
     users.forEach(u=>{ if(u.team_id) staffBy[u.team_id]=(staffBy[u.team_id]||0)+1; });
     entries.forEach(e=>{ if(e.team_id) actualBy[e.team_id]=(actualBy[e.team_id]||0)+(e.points||0); });
     targets.forEach(t=>{ leaveBy[t.team_id]=t.leave_days||0; });
 
     app.innerHTML="";
+    const leadLeave = AUTH.user.role==="team_lead"
+      ? `<div><label>My leave (days)</label><input type="number" id="ownLeave" min="0" step="0.5" value="${myLeave}" style="max-width:120px"></div>
+         <button class="btn sec" id="ownLeaveSave" style="width:auto">Save leave</button>
+         <span class="muted" id="ownLeaveMsg"></span>` : "";
     const head=el(`<div class="card">
       <h2 class="sec">📈 Team summary</h2>
-      <label>Month</label>
-      <input type="month" id="mSel" value="${mk}">
+      <div class="row" style="align-items:flex-end;gap:14px;flex-wrap:wrap">
+        <div><label>Month</label><input type="month" id="mSel" value="${mk}"></div>
+        ${leadLeave}
+      </div>
       ${calRow?`<p class="muted" style="margin-top:8px">Working days: <b>${calRow.working_days}</b> · Holidays: <b>${calRow.holidays}</b></p>`
              :`<div class="notice err" style="margin-top:8px">No working days set for this month. Set it in Admin → Month setup.</div>`}
     </div>`);
     app.appendChild(head);
     document.getElementById("mSel").onchange=(e)=>{S._month=e.target.value;renderSummary();};
+    const _lv=document.getElementById("ownLeaveSave");
+    if(_lv) _lv.onclick=async()=>{
+      const dd=Math.max(0,Number(document.getElementById("ownLeave").value)||0);
+      const msg=document.getElementById("ownLeaveMsg");
+      _lv.disabled=true; _lv.textContent="Saving…";
+      try{
+        const ex=await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=id");
+        if(ex.length) await sbPatch("leaves","staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk,{days:dd});
+        else await sbInsert("leaves",{staff_user_id:AUTH.user.id,month:mk,days:dd});
+        renderSummary();
+      }catch(e){ msg.textContent="Error: "+e.message; _lv.disabled=false; _lv.textContent="Save leave"; }
+    };
 
     let teamsToShow = S.teams;
     if(AUTH.user.role==="team_lead") teamsToShow = S.teams.filter(t=>t.id===AUTH.user.team_id);
