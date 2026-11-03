@@ -32,7 +32,7 @@
   html,body{margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
-  .wrap{max-width:var(--maxw);margin:0 auto;padding:12px 12px 92px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:12px 12px 24px}
   header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 2px 10px}
   header h1{font-size:18px;margin:0;font-weight:700}
   .who{font-size:12px;color:var(--muted);text-align:right}
@@ -303,12 +303,36 @@
   .etable .nowrap{white-space:nowrap}
   .etable tbody tr:hover{background:rgba(99,102,241,.05)}
   .etable td .statsel{min-width:96px}
+  /* ===== Top-right popup menu (mobile mini-app) ===== */
+  #menuBtn{display:none}
+  .menu-toggle svg{display:block}
+  @media (max-width:579px){
+    body:not(.auth) #menuBtn{display:flex}
+    nav.mobile{
+      position:fixed; top:54px; left:12px; right:auto; bottom:auto;
+      flex-direction:column; align-items:stretch;
+      min-width:208px; max-width:72vw;
+      background:linear-gradient(180deg,#1f2a49 0%,#131a2e 100%);
+      border:none; border-radius:16px;
+      box-shadow:0 18px 44px rgba(15,23,42,.34);
+      padding:8px; margin:0; z-index:60; display:none;
+    }
+    nav.mobile.open{display:flex}
+    nav.mobile .navcap{display:block;color:#8ea0c4;padding:4px 10px 8px}
+    nav.mobile button{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;
+      width:100%;color:#c3cde4;border-radius:11px;margin:2px 0;padding:12px 12px;font-size:14.5px}
+    nav.mobile button.active{color:#fff;background:rgba(255,255,255,.13)}
+    nav.mobile button .ic svg{width:20px;height:20px}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1 class="brandrow" id="brandH"><span>KPI&nbsp;Hub</span></h1>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="menuBtn" class="theme-toggle menu-toggle" title="Menu" aria-label="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <h1 class="brandrow" id="brandH"><span>KPI&nbsp;Hub</span></h1>
+    </div>
     <div style="display:flex;align-items:center;gap:10px">
       <button id="themeBtn" class="theme-toggle" title="Day / night">🌙</button>
       <div class="who" id="who"></div>
@@ -415,8 +439,16 @@ function nextMonthStart(mk){ const p=mk.split("-").map(Number); return localISO(
 function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){return null;} }
 
 /* set nav layout responsive to width */
-function applyNavMode(){ nav.classList.toggle("mobile", window.matchMedia("(max-width:579px)").matches); }
+function applyNavMode(){ const m=window.matchMedia("(max-width:579px)").matches; nav.classList.toggle("mobile", m); if(!m) nav.classList.remove("open"); }
 window.addEventListener("resize", applyNavMode);
+/* top-right popup menu toggle (mobile) */
+(function(){
+  const mb=document.getElementById("menuBtn");
+  if(mb) mb.onclick=(e)=>{ e.stopPropagation(); nav.classList.toggle("open"); };
+  document.addEventListener("click",(e)=>{
+    if(nav.classList.contains("open") && !nav.contains(e.target) && !(mb&&mb.contains(e.target))) nav.classList.remove("open");
+  });
+})();
 
 /* ============================================================
    BOOT  →  login or app
@@ -651,7 +683,7 @@ function startApp(){
     if(a&&a[0]){ AUTH.user.avatar=a[0].avatar; AUTH.user.email=a[0].email; AUTH.user.job_position=a[0].job_position; AUTH.user.contact=a[0].contact;
       try{ ls("kpihub_session",JSON.stringify(AUTH.user)); }catch(e){} renderWho(); }
   }).catch(function(){});
-  nav.querySelectorAll("button").forEach(b=>b.onclick=()=>show(b.dataset.tab));
+  nav.querySelectorAll("button").forEach(b=>b.onclick=()=>{ show(b.dataset.tab); nav.classList.remove("open"); });
   show("log");
 }
 function setActive(tab){ nav.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab)); }
