@@ -394,6 +394,8 @@ const el = (h)=>{const d=document.createElement("div");d.innerHTML=h;return d.fi
 const roleName = {officer:"Officer",team_lead:"Team Lead",manager:"Manager",admin:"Admin"};
 function teamName(id){const t=S.teams.find(t=>t.id===id);return t?t.name:"—";}
 function unitName(id){const u=S.units.find(u=>u.id===id);return u?u.name:"—";}
+function unitDaily(unitId){ const u=S.units.find(u=>u.id===unitId); const d=(u&&u.daily_target!=null)?parseInt(u.daily_target,10):NaN; return isNaN(d)?parseInt(S.settings.daily_target||DAILY_DEFAULT,10):d; }
+function teamDaily(teamId){ const t=S.teams.find(t=>t.id===teamId); return unitDaily(t?t.unit_id:null); }
 function teamColor(id){const t=S.teams.find(t=>t.id===id);return t?t.color:"#9ca3af";}
 function canSeeSummary(){return AUTH.user && ["officer","team_lead","manager","admin"].includes(AUTH.user.role);}
 function isAdmin(){return AUTH.user && AUTH.user.role==="admin";}
@@ -817,7 +819,7 @@ async function renderMine(mk, silent){
     const cal=(await sbGet(`month_calendar?select=working_days&month=eq.${curMk}`))[0];
     const lv=(await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+curMk+"&select=days"))[0];
     const leaveDays=lv?(Number(lv.days)||0):0;
-    const daily=parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
+    const daily=teamDaily(AUTH.user.team_id);
     const effDays=cal?Math.max(0,cal.working_days-leaveDays):null;
     const target=effDays!=null?daily*effDays:null;
     const mLabel=new Date(y,m-1,1).toLocaleString('en',{month:'short',year:'numeric'});
@@ -1145,7 +1147,7 @@ function askConfirm(msg, opts){ opts=opts||{}; return new Promise(res=>{
 async function renderOwnSummary(mk, from, to){
   const rows = await sbGet(`entries?staff_user_id=eq.${AUTH.user.id}&start_date=gte.${from}&start_date=lt.${to}&select=points&limit=5000`);
   const myPts = rows.reduce((a,e)=>a+(e.points||0),0);
-  const daily = parseInt(S.settings.daily_target||DAILY_DEFAULT,10);
+  const daily = teamDaily(AUTH.user.team_id);
   const cal = (await sbGet(`month_calendar?select=working_days&month=eq.${mk}`))[0];
   const lv = (await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=days"))[0];
   const leaveDays = lv?(Number(lv.days)||0):0;
@@ -1235,7 +1237,7 @@ async function renderSummary(){
       let target=null;
       if(calRow){
         const staffDays=calRow.working_days*staff-(leaveBy[t.id]||0);   // working_days already excludes holidays
-        target=Math.max(0, Math.round(daily*Math.max(0,staffDays)));
+        target=Math.max(0, Math.round(teamDaily(t.id)*Math.max(0,staffDays)));
       }
       let flag="";
       if(target!=null){
@@ -1283,7 +1285,7 @@ async function renderDashboard(){
     const stc={Pending:0,"In Progress":0,Done:0};
     entries.forEach(e=>{ if(stc[e.status]!=null) stc[e.status]++; });
     let tgtTotal=0; const hasTarget=!!cal;
-    S.teams.forEach(t=>{ if(cal){ const sd=cal.working_days*(staffBy[t.id]||0)-(leaveBy[t.id]||0); tgtTotal+=Math.max(0,Math.round(daily*Math.max(0,sd))); } });
+    S.teams.forEach(t=>{ if(cal){ const sd=cal.working_days*(staffBy[t.id]||0)-(leaveBy[t.id]||0); tgtTotal+=Math.max(0,Math.round(teamDaily(t.id)*Math.max(0,sd))); } });
     const pct = hasTarget && tgtTotal>0 ? Math.round(totalPoints/tgtTotal*100) : null;
     const byStaff={};
     entries.forEach(e=>{ const k=(e.staff_user_id!=null?("u"+e.staff_user_id):("n"+(e.staff_name||""))); if(!byStaff[k]) byStaff[k]={name:e.staff_name||"—",pts:0,tasks:0}; byStaff[k].pts+=(e.points||0); byStaff[k].tasks++; });
@@ -1643,6 +1645,29 @@ async function adTarget(host){
         const b=document.getElementById("mcSave"); b.textContent="Saved ✓"; setTimeout(()=>b.textContent="Save month",1200);
       }catch(e){ document.getElementById("mcMsg").innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
     };
+
+    // --- Daily KPI target per unit ---
+    const dcard=el(`<div class="card"><h2 class="sec">🎯 Daily KPI target — per unit</h2>
+      <p class="muted" style="margin:2px 0 10px">Points one staff is expected to earn per working day. Each unit can differ.</p>
+      <div id="dtList"></div>
+    </div>`);
+    host.appendChild(dcard);
+    const dtList=dcard.querySelector("#dtList");
+    if(!S.units.length) dtList.innerHTML="<p class='muted'>No units yet. Add units in Admin → Units & Teams.</p>";
+    S.units.forEach(u=>{
+      const row=el(`<div class="row" style="align-items:flex-end;margin:6px 0">
+        <div style="flex:2"><b>${esc(u.name)}</b></div>
+        <div style="flex:1"><label>Daily points</label><input type="number" min="0" value="${u.daily_target!=null?u.daily_target:DAILY_DEFAULT}" data-dt="${u.id}"></div>
+        <div style="flex:0 0 auto"><button class="btn sec sm" data-savdt="${u.id}">Save</button></div>
+      </div>`);
+      row.querySelector("[data-savdt]").onclick=async()=>{
+        const v=parseInt(row.querySelector("[data-dt]").value,10); if(isNaN(v)||v<0) return;
+        try{ await sbPatch("units","id=eq."+u.id,{daily_target:v}); u.daily_target=v; await reloadUnits();
+          const b=row.querySelector("[data-savdt]"); b.textContent="✓"; setTimeout(()=>b.textContent="Save",1000);
+        }catch(e){ alert("Error: "+e.message); }
+      };
+      dtList.appendChild(row);
+    });
 }
 function editUnitModal(u){
   const m=el(`<div class="modal modal-center"><div class="box" style="max-width:400px">
