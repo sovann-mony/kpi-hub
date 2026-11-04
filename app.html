@@ -841,6 +841,7 @@ async function saveEntry(){
   const statusVal=document.getElementById("f_status").value;
   const resolvedVal=document.getElementById("f_resolved").value;
   if(statusVal==="Done" && !resolvedVal){ err("Please set the Resolved date — it's required when the status is Done."); return; }
+  if(resolvedVal && resolvedVal < startDate){ err("Resolved date must be on or after the start date."); return; }
   const btn=document.getElementById("saveEntry"); btn.disabled=true; btn.textContent="Saving…";
   try{
     const base={
@@ -1044,6 +1045,8 @@ async function renderMine(silent){
             const def=(r.resolved_date? String(r.resolved_date).slice(0,10):todayISO());
             const rd=await askResolvedDate(def, r.remark);
             if(!rd){ sel.value=r.status; return; }
+            const stt=String(r.start_date).slice(0,10);
+            if(rd.date && stt && rd.date < stt){ showAlert("Resolved date must be on or after the start date ("+fmtDate(r.start_date)+").","Invalid date"); sel.value=r.status; return; }
             try{ await sbPatch("entries","id=eq."+r.id,{status:"Done",resolved_date:rd.date,remark:(rd.remark||null)}); renderMine(true); }
             catch(e){ alert("Error: "+e.message); sel.value=r.status; }
             return;
@@ -1104,6 +1107,8 @@ function editEntry(r){
     const edStatus=document.getElementById("ed_status").value;
     const edResolved=document.getElementById("ed_resolved").value;
     if(edStatus==="Done" && !edResolved){ document.getElementById("edMsg").innerHTML="<div class='notice err'>Please set the Resolved date — it's required when the status is Done.</div>"; return; }
+    const edStart=document.getElementById("ed_start").value;
+    if(edResolved && edStart && edResolved < edStart){ document.getElementById("edMsg").innerHTML="<div class='notice err'>Resolved date must be on or after the start date.</div>"; return; }
     const body={
       start_date: document.getElementById("ed_start").value||null,
       merchant_name: document.getElementById("ed_merchant").value.trim()||null,
@@ -1369,8 +1374,8 @@ function staffRowTr(u, calRow, ptsByUser, leaveByUser){
   return `<tr>
     <td>${esc(u.name||u.username||("User "+u.id))}${tag}</td>
     <td class="num">${lvd}</td>
-    <td class="num"><b>${pts}</b></td>
     <td class="num">${tgtCell}</td>
+    <td class="num"><b>${pts}</b></td>
     <td>${noKpi?"":flagFor(pts,tgt)}</td>
     <td class="nowrap"><button class="iconbtn" data-uid="${u.id}" title="View detail">\u{1F4CB} Detail</button></td>
   </tr>`;
@@ -1483,7 +1488,7 @@ async function renderSummary(){
     app.appendChild(listCard);
     const wrap=listCard.querySelector("#staffWrap");
     const colg=`<colgroup><col style="width:34%"><col style="width:11%"><col style="width:13%"><col style="width:15%"><col style="width:15%"><col style="width:12%"></colgroup>`;
-    const sHead=`<thead><tr><th>Staff</th><th class="num">Leave</th><th class="num">Points</th><th class="num">Target</th><th>Flag</th><th></th></tr></thead>`;
+    const sHead=`<thead><tr><th>Staff</th><th class="num">Leave</th><th class="num">Target</th><th class="num">Actual</th><th>Flag</th><th></th></tr></thead>`;
     const unitHdr=(txt)=>`<tr><td colspan="6" style="font-weight:700;background:rgba(99,102,241,.06);padding-top:12px">\u{1F3E2} ${esc(txt)}</td></tr>`;
     const teamHdr=(t)=>{ const n=(usersByTeam[t.id]||[]).length; return `<tr><td colspan="6" style="font-weight:600;padding-top:10px"><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)} <span class="muted">(${n} staff)</span></td></tr>`; };
     const teamRows=(t)=>{ const members=usersByTeam[t.id]||[]; return members.length? members.map(u=>staffRowTr(u,calRow,ptsByUser,leaveByUser)).join("") : `<tr><td colspan="6" class="muted">No staff in this team.</td></tr>`; };
@@ -1581,7 +1586,7 @@ const ADMIN_TABS=[
   {k:"target",t:"KPI Target",ic:"🎯"},
   {k:"services",t:"Services",ic:"🛠️"},
   {k:"cats",t:"Categories",ic:"🗂️"},
-  {k:"support",t:"Support Type",ic:"⭐"}
+  {k:"support",t:"Tasks",ic:"⭐"}
 ];
 async function renderAdmin(silent){
   if(!AUTH.pass){ renderAdminUnlock(); return; }
@@ -2096,8 +2101,7 @@ async function adUnits(host){
     const tList=tc.querySelector("#tList");
     S.teams.forEach(t=>{
       const row=el(`<div class="litem">
-        <div class="lname">${esc(t.name)}</div>
-        <div class="muted" style="flex:0 0 auto;margin-right:4px">${esc(unitName(t.unit_id))}</div>
+        <div class="lname">${esc(t.name)} <span class="muted" style="font-weight:400">· ${esc(unitName(t.unit_id))}</span></div>
         <div class="uact">
           <button class="btn sec sm" data-editt="${t.id}">Edit</button>
           <button class="btn danger sm" data-delt="${t.id}">Remove</button>
