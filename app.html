@@ -1699,21 +1699,13 @@ async function adUsers(host){
     </div>`);
     host.appendChild(rlCard);
     const rlList=rlCard.querySelector("#rlList");
+    const BASE_ROLE={officer:"Officer",team_lead:"Team Lead",manager:"Manager",admin:"Admin"};
     ["officer","team_lead","manager","admin"].forEach(k=>{
-      const row=el(`<div class="row" style="align-items:flex-end;margin:6px 0">
-        <div style="flex:1"><label>${esc(k)}</label><input value="${esc(roleName[k]||k)}" data-rl="${k}"></div>
-        <div style="flex:0 0 auto"><button class="btn sec sm" data-savrl="${k}">Save</button></div>
+      const row=el(`<div class="litem">
+        <div class="lname">${esc(roleName[k]||k)} <span class="muted" style="font-weight:400">· ${esc(BASE_ROLE[k])} role</span></div>
+        <div class="uact"><button class="btn sec sm" data-editrl="${k}">Edit</button></div>
       </div>`);
-      row.querySelector("[data-savrl]").onclick=async()=>{
-        const v=row.querySelector("[data-rl]").value.trim(); if(!v) return;
-        try{
-          const ex=await sbGet("role_labels?role_key=eq."+k+"&select=role_key");
-          if(ex.length) await sbPatch("role_labels","role_key=eq."+k,{label:v});
-          else await sbInsert("role_labels",{role_key:k,label:v});
-          roleName[k]=v;
-          renderAdmin(true);
-        }catch(e){ alert("Error: "+e.message); }
-      };
+      row.querySelector("[data-editrl]").onclick=()=>editRoleNameModal(k);
       rlList.appendChild(row);
     });
 
@@ -1797,6 +1789,34 @@ function editNameModal(title, table, item, reloadFn){
     catch(e){ m.querySelector('#enMsg').innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save"; }
   };
   setTimeout(()=>{ const f=m.querySelector('#en_name'); if(f){ f.focus(); f.select(); } },50);
+}
+function editRoleNameModal(k){
+  const m=el(`<div class="modal modal-center"><div class="box" style="max-width:400px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✏️ Edit role name</h2><button class="iconbtn" data-x title="Close">✕</button></div>
+    <div id="rlMsg"></div>
+    <label>Label for the <b>${esc(k)}</b> role</label>
+    <input id="rl_name" value="${esc(roleName[k]||k)}">
+    <div class="row" style="margin-top:14px">
+      <button class="btn sec" data-cancel>Cancel</button>
+      <button class="btn" id="rl_save">Save</button>
+    </div>
+  </div></div>`);
+  document.body.appendChild(m);
+  const close=()=>m.remove();
+  m.querySelector('[data-x]').onclick=close; m.querySelector('[data-cancel]').onclick=close;
+  m.onclick=(e)=>{ if(e.target===m) close(); };
+  m.querySelector('#rl_save').onclick=async()=>{
+    const v=m.querySelector('#rl_name').value.trim();
+    if(!v){ m.querySelector('#rlMsg').innerHTML="<div class='notice err'>Enter a name.</div>"; return; }
+    const b=m.querySelector('#rl_save'); b.disabled=true; b.textContent="Saving…";
+    try{
+      const ex=await sbGet("role_labels?role_key=eq."+k+"&select=role_key");
+      if(ex.length) await sbPatch("role_labels","role_key=eq."+k,{label:v});
+      else await sbInsert("role_labels",{role_key:k,label:v});
+      roleName[k]=v; close(); renderAdmin(true);
+    }catch(e){ m.querySelector('#rlMsg').innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save"; }
+  };
+  setTimeout(()=>{ const f=m.querySelector('#rl_name'); if(f){ f.focus(); f.select(); } },50);
 }
 function editSupportModal(s){
   const m=el(`<div class="modal modal-center"><div class="box" style="max-width:400px">
@@ -2068,11 +2088,13 @@ async function adUnits(host){
     host.appendChild(tc);
     const tList=tc.querySelector("#tList");
     S.teams.forEach(t=>{
-      const row=el(`<div class="row" style="align-items:center;margin:6px 0;flex-wrap:wrap">
-        <div style="flex:2;min-width:120px"><b>${esc(t.name)}</b></div>
-        <div style="flex:2;min-width:120px" class="muted">${esc(unitName(t.unit_id))}</div>
-        <div style="flex:0 0 auto"><button class="btn sec sm" data-editt="${t.id}">Edit</button></div>
-        <div style="flex:0 0 auto"><button class="btn danger sm" data-delt="${t.id}">Remove</button></div>
+      const row=el(`<div class="litem">
+        <div class="lname">${esc(t.name)}</div>
+        <div class="muted" style="flex:0 0 auto;margin-right:4px">${esc(unitName(t.unit_id))}</div>
+        <div class="uact">
+          <button class="btn sec sm" data-editt="${t.id}">Edit</button>
+          <button class="btn danger sm" data-delt="${t.id}">Remove</button>
+        </div>
       </div>`);
       row.querySelector("[data-editt]").onclick=()=>editTeamModal(t);
       row.querySelector("[data-delt]").onclick=async()=>{
