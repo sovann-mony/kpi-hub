@@ -816,7 +816,7 @@ function showAlert(message, title){
 }
 async function saveEntry(){
   const msg=document.getElementById("logMsg");
-  const err=(t)=>{ msg.innerHTML="<div class='notice err'>"+t+"</div>"; };
+  const err=(t)=>{ showAlert(t,"Missing information"); };
   const startDate=document.getElementById("f_start").value;
   if(!startDate){ err("Please choose a start date."); return; }
   const merchants=collectChips("f_merchant","merchantChips");
@@ -864,7 +864,7 @@ async function saveEntry(){
     renderLog();
     document.getElementById("logMsg").innerHTML="<div class='notice ok'>✅ Saved "+n+" "+(n===1?"entry":"entries")+"! ("+pts+" points)</div>";
   }catch(e){
-    err(esc(e.message));
+    showAlert(e.message,"Couldn't save");
     btn.disabled=false; btn.textContent="Save entry";
   }
 }
