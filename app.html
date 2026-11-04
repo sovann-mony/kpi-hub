@@ -253,6 +253,8 @@
   .etable{min-width:920px}
   .etable.fit{min-width:0;width:100%}
   .etable.fit th,.etable.fit td{padding:10px 8px}
+  .etable.compact{font-size:12px;min-width:1120px}
+  .etable.compact th,.etable.compact td{padding:9px 8px}
   /* ===== Edit modal ===== */
   .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:24px 16px;overflow:auto}
   .modal.modal-center{align-items:center}
@@ -758,7 +760,7 @@ function renderLog(){
       <div><label>Contact</label><input id="f_contact" placeholder="phone number / email"></div>
       <div><label>Service</label>${comboField("f_service","Type or pick a service")}</div>
       <div><label>Category</label>${comboField("f_category","Type or pick a category")}</div>
-      <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label>${comboField("f_support","Type or pick a support type")}</div>
+      <div><label>Task &nbsp;<span class="pts" id="ptsHint"></span></label>${comboField("f_support","Type or pick a task")}</div>
       <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
       <div><label>Resolved date</label>${dfield("f_resolved","")}</div>
       <div class="span2"><label>Remark(s) <span class="muted" style="font-weight:400">— optional</span></label><input id="f_remark" placeholder="Optional — type a remark / ticket no., Enter to add more"><div id="remarkChips" class="chips"></div></div>
@@ -828,7 +830,7 @@ async function saveEntry(){
   const category=document.getElementById("f_category").value.trim();
   if(!category){ err("Please choose a category."); return; }
   const supId=parseInt(document.getElementById("f_support").value,10);
-  if(!supId){ err("Please choose a support type."); return; }
+  if(!supId){ err("Please choose a task."); return; }
   const remarks=collectChips("f_remark","remarkChips");   // optional
   // restriction: can't use multiple merchants AND multiple remarks together
   if(merchants.length>1 && remarks.length>1){
@@ -974,10 +976,13 @@ async function renderMine(silent){
     let headCols="";
     if(showStaff) headCols+="<th>Staff</th>";
     if(showTeamCol) headCols+="<th>Team</th>";
-    headCols+=`<th class="nowrap">Start date</th><th>Task</th>`;
-    if(role==="officer") headCols+="<th>Contact</th>";
-    headCols+=`<th>Support type</th>`;
-    if(role==="officer"||role==="team_lead") headCols+="<th>Remark</th>";
+    headCols+=`<th class="nowrap">Start date</th>`;
+    headCols+=`<th>Merchant name</th>`;
+    headCols+=`<th>Contact</th>`;
+    headCols+=`<th>Service</th>`;
+    headCols+=`<th>Category</th>`;
+    headCols+=`<th>Task</th>`;
+    headCols+=`<th>Remark</th>`;
     headCols+=`<th class="nowrap">Resolved</th><th>Status</th>`;
     if(role==="officer"||role==="admin") headCols+="<th></th>";
     const colCount=(headCols.match(/<th/g)||[]).length;
@@ -988,7 +993,7 @@ async function renderMine(silent){
         <button class="iconbtn" id="mineSearchBtn" title="Search results">\u{1F50D}</button>
       </div>
       <div id="mineSearchWrap" class="hide" style="margin-top:8px"><input id="mineSearch" placeholder="Search results…"></div>
-      <div style="overflow-x:auto;margin-top:8px"><table class="etable">
+      <div style="overflow-x:auto;margin-top:8px"><table class="etable compact">
         <thead><tr>${headCols}</tr></thead><tbody id="eList"></tbody></table></div></div>`);
     app.appendChild(listCard);
     const list=listCard.querySelector("#eList");
@@ -1011,9 +1016,11 @@ async function renderMine(silent){
       if(showTeamCol) html+=`<td>${esc(teamName(r.team_id))}</td>`;
       html+=`<td class="nowrap">${esc(fmtDate(r.start_date))}</td>`;
       html+=`<td><b>${esc(r.merchant_name||"—")}</b></td>`;
-      if(role==="officer") html+=`<td>${esc(r.contact||"N/A")}</td>`;
+      html+=`<td>${esc(r.contact||"—")}</td>`;
+      html+=`<td>${esc(r.service||"—")}</td>`;
+      html+=`<td>${esc(r.category||"—")}</td>`;
       html+=`<td>${esc(sup||"—")}</td>`;
-      if(role==="officer"||role==="team_lead") html+=`<td class="rem">${esc(r.remark||"—")}</td>`;
+      html+=`<td class="rem">${esc(r.remark||"—")}</td>`;
       html+=`<td class="nowrap">${esc(fmtDate(r.resolved_date))}</td>`;
       if(role==="officer"){
         html+=`<td>${ r.status==="Done"
@@ -1067,11 +1074,11 @@ function editEntry(r){
     <div id="edMsg"></div>
     <div class="grid2">
       <div><label>Start date</label>${dfield("ed_start",(r.start_date||"").slice(0,10))}</div>
-      <div><label>Task / merchant</label><input id="ed_merchant" value="${esc(r.merchant_name||"")}"></div>
+      <div><label>Merchant name</label><input id="ed_merchant" value="${esc(r.merchant_name||"")}"></div>
       <div><label>Contact</label><input id="ed_contact" value="${esc(r.contact||"")}"></div>
       <div><label>Service</label>${comboField("ed_service","Type or pick a service")}</div>
       <div><label>Category</label>${comboField("ed_category","Type or pick a category")}</div>
-      <div><label>Support type</label>${comboField("ed_support","Type or pick a support type")}</div>
+      <div><label>Task</label>${comboField("ed_support","Type or pick a task")}</div>
       <div><label>Status</label><select id="ed_status">${statOpts}</select></div>
       <div><label>Resolved date</label>${dfield("ed_resolved",(r.resolved_date||"").slice(0,10))}</div>
       <div class="span2"><label>Remark</label><textarea id="ed_remark">${esc(r.remark||"")}</textarea></div>
@@ -1820,7 +1827,7 @@ function editRoleNameModal(k){
 }
 function editSupportModal(s){
   const m=el(`<div class="modal modal-center"><div class="box" style="max-width:400px">
-    <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✏️ Edit support type</h2><button class="iconbtn" data-x title="Close">✕</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✏️ Edit task</h2><button class="iconbtn" data-x title="Close">✕</button></div>
     <div id="esMsg"></div>
     <label>Name</label>
     <input id="es_name" value="${esc(s.name)}">
@@ -1846,10 +1853,10 @@ function editSupportModal(s){
   setTimeout(()=>{ const f=m.querySelector('#es_name'); if(f){ f.focus(); f.select(); } },50);
 }
 async function adSupport(host){
-    const sc=el(`<div class="card"><h2 class="sec">⭐ Support types</h2>
+    const sc=el(`<div class="card"><h2 class="sec">⭐ Tasks</h2>
       <div id="sList"></div>
       <div class="row" style="align-items:flex-end;margin-top:12px">
-        <div style="flex:2"><label>New type name</label><input id="stName" placeholder="e.g. Callback"></div>
+        <div style="flex:2"><label>New task name</label><input id="stName" placeholder="e.g. Callback"></div>
         <div><label>Points</label><input type="number" id="stPts" value="1"></div>
         <div style="flex:0 0 auto"><button class="btn sec sm" id="stAdd">Add</button></div>
       </div>
@@ -1864,7 +1871,7 @@ async function adSupport(host){
         </div></div>`);
       row.querySelector("[data-edsup]").onclick=()=>editSupportModal(s);
       row.querySelector("[data-delp]").onclick=async()=>{
-        if(!(await askConfirm('Remove support type "'+s.name+'"?',{title:'Remove support type',ok:'Remove',danger:true}))) return;
+        if(!(await askConfirm('Remove task "'+s.name+'"?',{title:'Remove task',ok:'Remove',danger:true}))) return;
         try{ await sbPatch("support_types","id=eq."+s.id,{active:false}); await reloadSupports(); renderAdmin(true); }
         catch(e){ alert("Error: "+e.message); }
       };
