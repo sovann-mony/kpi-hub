@@ -761,7 +761,7 @@ function renderLog(){
       <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label>${comboField("f_support","Type or pick a support type")}</div>
       <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
       <div><label>Resolved date</label>${dfield("f_resolved","")}</div>
-      <div class="span2"><label>Remark(s)</label><input id="f_remark" placeholder="Type a remark / ticket no., Enter to add more"><div id="remarkChips" class="chips"></div></div>
+      <div class="span2"><label>Remark(s) <span class="muted" style="font-weight:400">— optional</span></label><input id="f_remark" placeholder="Optional — type a remark / ticket no., Enter to add more"><div id="remarkChips" class="chips"></div></div>
     </div>
     <div style="height:12px"></div>
     <button class="btn" id="saveEntry">Save entry</button>
@@ -829,8 +829,7 @@ async function saveEntry(){
   if(!category){ err("Please choose a category."); return; }
   const supId=parseInt(document.getElementById("f_support").value,10);
   if(!supId){ err("Please choose a support type."); return; }
-  const remarks=collectChips("f_remark","remarkChips");
-  if(!remarks.length){ err("Please enter at least one remark."); return; }
+  const remarks=collectChips("f_remark","remarkChips");   // optional
   // restriction: can't use multiple merchants AND multiple remarks together
   if(merchants.length>1 && remarks.length>1){
     showAlert("You can't use multiple merchants and multiple remarks at the same time. Please keep one of them as a single value.","Not allowed");
@@ -857,7 +856,7 @@ async function saveEntry(){
     };
     let rows;
     if(remarks.length>1) rows=remarks.map(rk=>Object.assign({merchant_name:merchants[0], remark:rk}, base));
-    else rows=merchants.map(m=>Object.assign({merchant_name:m, remark:remarks[0]}, base));
+    else rows=merchants.map(m=>Object.assign({merchant_name:m, remark:(remarks[0]||null)}, base));
     await sbInsert("entries", rows);
     if(tg){ try{ tg.HapticFeedback.notificationOccurred("success"); }catch(e){} }
     const n=rows.length, pts=(sup?sup.points:0)*n;
