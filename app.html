@@ -1638,18 +1638,25 @@ async function adUsers(host){
       <div class="grid2">
         <div><label>Full name</label><input id="a_name" placeholder="e.g. Sok Dara"></div>
         <div><label>Username</label><input id="a_user" autocapitalize="off" placeholder="e.g. dara"></div>
-        <div><label>Unit</label><select id="a_unit">${unitOpts}</select></div>
-        <div><label>Team</label><select id="a_team"></select></div>
         <div><label>Role</label><select id="a_role">${roleOpts}</select></div>
+        <div id="wrap_unit"><label>Unit</label><select id="a_unit">${unitOpts}</select></div>
+        <div id="wrap_team"><label>Team</label><select id="a_team"></select></div>
       </div>
       <p class="muted" style="margin-top:8px">A password is generated automatically and shown to you right after you create the user.</p>
       <div style="height:10px"></div>
       <button class="btn" id="a_save">Create new user</button>
     </div>`);
     host.appendChild(addc);
-    const aUnit=addc.querySelector("#a_unit"), aTeam=addc.querySelector("#a_team");
+    const aUnit=addc.querySelector("#a_unit"), aTeam=addc.querySelector("#a_team"), aRole=addc.querySelector("#a_role");
     fillTeamsForUnit(aUnit, aTeam);
     aUnit.onchange=()=>fillTeamsForUnit(aUnit, aTeam);
+    // Unit/Team requirement depends on role: hidden for Admin (both) and Manager (team)
+    function applyRoleFields(){
+      const r=aRole.value;
+      addc.querySelector("#wrap_unit").style.display = (r==="admin") ? "none" : "";
+      addc.querySelector("#wrap_team").style.display = (r==="admin"||r==="manager") ? "none" : "";
+    }
+    aRole.onchange=applyRoleFields; applyRoleFields();
     document.getElementById("a_save").onclick=addStaff;
 
     // --- Bulk add staff ---
@@ -2127,15 +2134,25 @@ async function addStaff(){
   const name=document.getElementById("a_name").value.trim();
   const user=document.getElementById("a_user").value.trim();
   if(!name||!user){ msg.innerHTML="<div class='notice err'>Name and username are required.</div>"; return; }
-  const teamVal=document.getElementById("a_team").value;
+  const role=document.getElementById("a_role").value;
+  const unitVal=parseInt(document.getElementById("a_unit").value,10)||null;
+  let teamId=parseInt(document.getElementById("a_team").value,10)||null;
+  if(role==="officer"||role==="team_lead"){
+    if(!teamId){ msg.innerHTML="<div class='notice err'>Please choose a Team for this role.</div>"; return; }
+  } else if(role==="manager"){
+    if(!unitVal){ msg.innerHTML="<div class='notice err'>Please choose a Unit for the Manager.</div>"; return; }
+    if(!teamId){ const ft=S.teams.find(t=>t.unit_id===unitVal); teamId=ft?ft.id:null; }   // anchor to the unit so their unit scope works
+  } else if(role==="admin"){
+    teamId=null;   // admin isn't tied to a unit or team
+  }
   const pass=genUserPass();
   const btn=document.getElementById("a_save"); btn.disabled=true; btn.textContent="Creating…";
   try{
     await sbRpc("app_save_user",{
       p_admin_user:AUTH.user.username, p_admin_pass:AUTH.pass,
       p_user_id:null, p_name:name, p_username:user, p_password:pass,
-      p_team_id: (parseInt(teamVal,10)||null),
-      p_role: document.getElementById("a_role").value, p_active:true
+      p_team_id: teamId,
+      p_role: role, p_active:true
     });
     try{ await sbRpc("app_flag_pw_change",{p_username:user}); }catch(e){}
     showCredsModal("User created", name, user, pass, ()=>renderAdmin(true));
