@@ -761,7 +761,7 @@ function renderLog(){
       <div><label>Support type &nbsp;<span class="pts" id="ptsHint"></span></label>${comboField("f_support","Type or pick a support type")}</div>
       <div><label>Status</label><select id="f_status"><option>Pending</option><option>In Progress</option><option>Done</option></select></div>
       <div><label>Resolved date</label>${dfield("f_resolved","")}</div>
-      <div class="span2"><label>Remark</label><textarea id="f_remark" placeholder="optional notes"></textarea></div>
+      <div class="span2"><label>Remark(s)</label><input id="f_remark" placeholder="Type a remark / ticket no., Enter to add more"><div id="remarkChips" class="chips"></div></div>
     </div>
     <div style="height:12px"></div>
     <button class="btn" id="saveEntry">Save entry</button>
@@ -774,60 +774,97 @@ function renderLog(){
   wireCombo(c, "f_category", S.categories.map(x=>({value:x.name,label:x.name})));
   wireCombo(c, "f_support", S.supports.map(s=>({value:String(s.id),label:s.name+" ("+s.points+" pts)",points:s.points})), function(it){ hint.textContent = it ? ("= "+it.points+" points") : ""; });
   wireStatusResolved(c, "f_status", "f_resolved");
-  // multi-merchant chips: type a name + Enter (or comma) to add more
-  const mInput=document.getElementById("f_merchant");
-  const chipsEl=document.getElementById("merchantChips");
-  const mList=[]; chipsEl._list=mList;
-  function renderChips(){
-    chipsEl.innerHTML=mList.map((n,i)=>`<span class="chip">${esc(n)}<button type="button" data-i="${i}" title="Remove">×</button></span>`).join("");
-    chipsEl.querySelectorAll("button[data-i]").forEach(b=>b.onclick=()=>{ mList.splice(parseInt(b.dataset.i,10),1); renderChips(); });
-  }
-  function addMerchant(v){ v=(v||"").trim(); if(!v) return; if(!mList.some(x=>x.toLowerCase()===v.toLowerCase())) mList.push(v); renderChips(); }
-  mInput.addEventListener("keydown",(e)=>{
-    if(e.key==="Enter"||e.key===","){ e.preventDefault(); addMerchant(mInput.value); mInput.value=""; }
-    else if(e.key==="Backspace" && !mInput.value && mList.length){ mList.pop(); renderChips(); }
-  });
+  // multi-value chips: type a value + Enter (or comma) to add more
+  wireChipInput("f_merchant","merchantChips");
+  wireChipInput("f_remark","remarkChips");
   document.getElementById("saveEntry").onclick=saveEntry;
+}
+/* reusable chips input: Enter/comma adds, × or Backspace removes; list stored on container._list */
+function wireChipInput(inputId, chipsId){
+  const inp=document.getElementById(inputId), box=document.getElementById(chipsId);
+  if(!inp||!box) return;
+  const list=[]; box._list=list;
+  function render(){
+    box.innerHTML=list.map((n,i)=>`<span class="chip">${esc(n)}<button type="button" data-i="${i}" title="Remove">×</button></span>`).join("");
+    box.querySelectorAll("button[data-i]").forEach(b=>b.onclick=()=>{ list.splice(parseInt(b.dataset.i,10),1); render(); });
+  }
+  function add(v){ v=(v||"").trim(); if(!v) return; if(!list.some(x=>x.toLowerCase()===v.toLowerCase())) list.push(v); render(); }
+  inp.addEventListener("keydown",(e)=>{
+    if(e.key==="Enter"||e.key===","){ e.preventDefault(); add(inp.value); inp.value=""; }
+    else if(e.key==="Backspace" && !inp.value && list.length){ list.pop(); render(); }
+  });
+}
+/* collect chips list + any text still typed in the input (so single values work without Enter) */
+function collectChips(inputId, chipsId){
+  const box=document.getElementById(chipsId);
+  const list=(box&&box._list)?box._list.slice():[];
+  const typed=(document.getElementById(inputId).value||"").trim();
+  if(typed && !list.some(x=>x.toLowerCase()===typed.toLowerCase())) list.push(typed);
+  return list;
+}
+/* simple centered popup for errors */
+function showAlert(message, title){
+  const m=el(`<div class="modal modal-center"><div class="box" style="max-width:380px">
+    <h2 class="sec">${esc(title||"Can't save")}</h2>
+    <p class="muted" style="margin:8px 0 16px">${esc(message)}</p>
+    <div class="row"><button class="btn" data-ok>OK</button></div>
+  </div></div>`);
+  document.body.appendChild(m);
+  const done=()=>m.remove();
+  m.querySelector("[data-ok]").onclick=done;
+  m.onclick=(e)=>{ if(e.target===m) done(); };
 }
 async function saveEntry(){
   const msg=document.getElementById("logMsg");
+  const err=(t)=>{ msg.innerHTML="<div class='notice err'>"+t+"</div>"; };
   const startDate=document.getElementById("f_start").value;
-  if(!startDate){ msg.innerHTML="<div class='notice err'>Please choose a start date.</div>"; return; }
-  const chipsEl=document.getElementById("merchantChips");
-  const merchants=(chipsEl&&chipsEl._list)?chipsEl._list.slice():[];
-  const typed=document.getElementById("f_merchant").value.trim();
-  if(typed && !merchants.some(x=>x.toLowerCase()===typed.toLowerCase())) merchants.push(typed);
-  if(!merchants.length){ msg.innerHTML="<div class='notice err'>Please enter at least one merchant name.</div>"; return; }
+  if(!startDate){ err("Please choose a start date."); return; }
+  const merchants=collectChips("f_merchant","merchantChips");
+  if(!merchants.length){ err("Please enter at least one merchant name."); return; }
+  const contact=document.getElementById("f_contact").value.trim();
+  if(!contact){ err("Please enter the contact."); return; }
+  const service=document.getElementById("f_service").value.trim();
+  if(!service){ err("Please choose a service."); return; }
+  const category=document.getElementById("f_category").value.trim();
+  if(!category){ err("Please choose a category."); return; }
   const supId=parseInt(document.getElementById("f_support").value,10);
-  if(!supId){ msg.innerHTML="<div class='notice err'>Please choose a support type.</div>"; return; }
+  if(!supId){ err("Please choose a support type."); return; }
+  const remarks=collectChips("f_remark","remarkChips");
+  if(!remarks.length){ err("Please enter at least one remark."); return; }
+  // restriction: can't use multiple merchants AND multiple remarks together
+  if(merchants.length>1 && remarks.length>1){
+    showAlert("You can't use multiple merchants and multiple remarks at the same time. Please keep one of them as a single value.","Not allowed");
+    return;
+  }
   const sup=S.supports.find(s=>s.id===supId);
   const statusVal=document.getElementById("f_status").value;
   const resolvedVal=document.getElementById("f_resolved").value;
-  if(statusVal==="Done" && !resolvedVal){ msg.innerHTML="<div class='notice err'>Please set the Resolved date — it's required when the status is Done.</div>"; return; }
+  if(statusVal==="Done" && !resolvedVal){ err("Please set the Resolved date — it's required when the status is Done."); return; }
   const btn=document.getElementById("saveEntry"); btn.disabled=true; btn.textContent="Saving…";
   try{
     const base={
-      start_date: document.getElementById("f_start").value || null,
-      contact: document.getElementById("f_contact").value.trim() || null,
-      service: document.getElementById("f_service").value.trim() || null,
-      category: document.getElementById("f_category").value.trim() || null,
+      start_date: startDate,
+      contact: contact,
+      service: service,
+      category: category,
       support_type_id: supId,
       points: sup ? sup.points : 0,
       status: statusVal,
       resolved_date: statusVal==="Done" ? (resolvedVal||null) : null,
-      remark: document.getElementById("f_remark").value.trim() || null,
       team_id: AUTH.user.team_id,
       staff_user_id: AUTH.user.id,
       staff_name: AUTH.user.name || AUTH.user.username
     };
-    const rows=merchants.map(m=>Object.assign({merchant_name:m}, base));
+    let rows;
+    if(remarks.length>1) rows=remarks.map(rk=>Object.assign({merchant_name:merchants[0], remark:rk}, base));
+    else rows=merchants.map(m=>Object.assign({merchant_name:m, remark:remarks[0]}, base));
     await sbInsert("entries", rows);
     if(tg){ try{ tg.HapticFeedback.notificationOccurred("success"); }catch(e){} }
     const n=rows.length, pts=(sup?sup.points:0)*n;
     renderLog();
     document.getElementById("logMsg").innerHTML="<div class='notice ok'>✅ Saved "+n+" "+(n===1?"entry":"entries")+"! ("+pts+" points)</div>";
   }catch(e){
-    msg.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>";
+    err(esc(e.message));
     btn.disabled=false; btn.textContent="Save entry";
   }
 }
