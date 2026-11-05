@@ -1704,23 +1704,6 @@ async function adUsers(host){
     </div>`);
     host.appendChild(permc);
 
-    // --- Role names (admin can rename labels) ---
-    const rlCard=el(`<div class="card"><h2 class="sec">✏️ Role names</h2>
-      <p class="muted" style="margin:2px 0 10px">Rename how each role is labelled. The permissions above stay the same.</p>
-      <div id="rlList"></div>
-    </div>`);
-    host.appendChild(rlCard);
-    const rlList=rlCard.querySelector("#rlList");
-    const BASE_ROLE={officer:"Officer",team_lead:"Team Lead",manager:"Manager",admin:"Admin"};
-    ["officer","team_lead","manager","admin"].forEach(k=>{
-      const row=el(`<div class="litem">
-        <div class="lname">${esc(roleName[k]||k)} <span class="muted" style="font-weight:400">· ${esc(BASE_ROLE[k])} role</span></div>
-        <div class="uact"><button class="btn sec sm" data-editrl="${k}">Edit</button></div>
-      </div>`);
-      row.querySelector("[data-editrl]").onclick=()=>editRoleNameModal(k);
-      rlList.appendChild(row);
-    });
-
     // --- Existing staff (single-row list) ---
     const uc=el(`<div class="card"><h2 class="sec">👥 Users (${users.length})</h2>
       <div class="urow uhead"><div>Name</div><div>Unit</div><div>Team</div><div>Role</div><div class="uact">Actions</div></div>
