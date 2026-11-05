@@ -1561,7 +1561,7 @@ async function renderApprovals(){
   app.innerHTML="<div class='center'><span class='spin'></span></div>";
   try{
     const ids=approvalScopeTeamIds();
-    let q="pending_entries?select=*,support_types(name)&order=requested_at.asc&limit=1000";
+    let q="pending_entries?select=*&order=requested_at.asc&limit=1000";
     if(ids!==null){ if(!ids.length){ app.innerHTML="<div class='card'><h2 class='sec'>✅ Approvals</h2><p class='muted'>Your unit isn't set yet, so there's nothing to approve.</p></div>"; return; } q+="&team_id=in.("+ids.join(",")+")"; }
     const rows=await sbGet(q);
     app.innerHTML="";
@@ -1571,7 +1571,7 @@ async function renderApprovals(){
     const list=el(`<div class="card"><div id="apprList"></div></div>`); app.appendChild(list);
     const host=list.querySelector("#apprList");
     rows.forEach(r=>{
-      const sup=r.support_types?r.support_types.name:"";
+      const sup=(S.supports.find(s=>s.id===r.support_type_id)||{}).name||"";
       const row=el(`<div class="litem" style="align-items:flex-start;flex-wrap:wrap">
         <div class="lname" style="flex:1;min-width:220px;white-space:normal">
           <b>${esc(r.merchant_name||"—")}</b> <span class="muted">· ${esc(fmtDate(r.start_date))}</span>
