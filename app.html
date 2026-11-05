@@ -1306,7 +1306,7 @@ async function renderOwnSummary(mk, from, to){
       const ex=await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=id");
       if(ex.length) await sbPatch("leaves","staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk,{days:dd});
       else await sbInsert("leaves",{staff_user_id:AUTH.user.id,month:mk,days:dd});
-      renderSummary();
+      renderSummary(true);
     }catch(e){ msg.textContent="Error: "+e.message; _lv.disabled=false; _lv.textContent="Save leave"; }
   };
   const _db=document.getElementById("detailBtn"), _dbox=document.getElementById("detailBox");
@@ -1381,8 +1381,8 @@ function staffRowTr(u, calRow, ptsByUser, leaveByUser){
   </tr>`;
 }
 
-async function renderSummary(){
-  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+async function renderSummary(silent){
+  if(!silent) app.innerHTML="<div class='center'><span class='spin'></span></div>";
   const mk = S._month || monthKey(new Date());
   S._month = mk;
   try{
@@ -1436,7 +1436,7 @@ async function renderSummary(){
         const ex=await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=id");
         if(ex.length) await sbPatch("leaves","staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk,{days:dd});
         else await sbInsert("leaves",{staff_user_id:AUTH.user.id,month:mk,days:dd});
-        renderSummary();
+        renderSummary(true);
       }catch(e){ msg.textContent="Error: "+e.message; _lv.disabled=false; _lv.textContent="Save leave"; }
     };
 
