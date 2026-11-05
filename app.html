@@ -327,6 +327,7 @@
     <button data-tab="mine" id="navMine"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></span>My Entries</button>
     <button data-tab="summary" id="navSummary"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M15 7h5v5"/></svg></span>Summary</button>
     <button data-tab="dashboard" id="navDashboard"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/></svg></span>Dashboard</button>
+    <button data-tab="approvals" id="navApprovals" class="hide"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Approvals<span id="apprBadge"></span></button>
     <button data-tab="profile" id="navProfile"><span class="ic"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Profile</button>
     <button data-tab="admin" id="navAdmin"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Admin</button>
   </nav>
@@ -340,6 +341,7 @@
 const SUPABASE_URL = "https://rhyzyurplrceihdqfwtx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_64PoRnyLVJQrcrkNTsOTKA_tPJthL-n";
 const DAILY_DEFAULT = 40;
+const AL_DEFAULT = 1.5;   // default annual-leave days deducted from every KPI target, per month
 
 const LOGO = '<svg class="logo" viewBox="0 0 48 48" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="kpiG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs><rect x="3" y="3" width="42" height="42" rx="13" fill="url(#kpiG)"/><rect x="3.5" y="3.5" width="41" height="41" rx="12.5" fill="none" stroke="#ffffff" stroke-opacity=".18"/><rect x="12" y="27" width="6.5" height="9" rx="2.2" fill="#ffffff" opacity=".72"/><rect x="20.75" y="22" width="6.5" height="14" rx="2.2" fill="#ffffff" opacity=".86"/><rect x="29.5" y="16" width="6.5" height="20" rx="2.2" fill="#ffffff"/><path d="M13 24.5 L23 19.5 L31.5 21.5 L37 13.5" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><circle cx="37" cy="13.5" r="2.4" fill="#ffffff"/></svg>';
 
@@ -408,6 +410,17 @@ function teamName(id){const t=S.teams.find(t=>t.id===id);return t?t.name:"—";}
 function unitName(id){const u=S.units.find(u=>u.id===id);return u?u.name:"—";}
 function unitDaily(unitId){ const u=S.units.find(u=>u.id===unitId); const d=(u&&u.daily_target!=null)?parseInt(u.daily_target,10):NaN; return isNaN(d)?parseInt(S.settings.daily_target||DAILY_DEFAULT,10):d; }
 function teamDaily(teamId){ const t=S.teams.find(t=>t.id===teamId); return unitDaily(t?t.unit_id:null); }
+/* a task is visible to a user when it's global (no unit/team), matches their team, or matches their unit */
+function taskVisibleFor(s, teamId){
+  if(s.team_id==null && s.unit_id==null) return true;
+  if(s.team_id!=null) return s.team_id===teamId;
+  const t=S.teams.find(x=>x.id===teamId); return s.unit_id===(t?t.unit_id:null);
+}
+function taskScopeLabel(s){
+  if(s.team_id!=null){ const t=S.teams.find(x=>x.id===s.team_id); return t?("Team: "+t.name):"Team"; }
+  if(s.unit_id!=null){ const u=S.units.find(x=>x.id===s.unit_id); return u?("Unit: "+u.name):"Unit"; }
+  return "All";
+}
 function teamColor(id){const t=S.teams.find(t=>t.id===id);return t?t.color:"#9ca3af";}
 function canSeeSummary(){return AUTH.user && ["officer","team_lead","manager","admin"].includes(AUTH.user.role);}
 function isAdmin(){return AUTH.user && AUTH.user.role==="admin";}
@@ -418,6 +431,8 @@ function safeImg(v){ v=(v==null?"":String(v)); return /^data:image\/(png|jpe?g|g
 function pad2(n){ return (n<10?"0":"")+n; }
 function localISO(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
 function todayISO(){ return localISO(new Date()); }
+/* earliest start date an Officer/Team Lead may pick without approval = 1 working day back (skips Sat/Sun) */
+function prevWorkingDayISO(){ const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-1); while(d.getDay()===0||d.getDay()===6){ d.setDate(d.getDate()-1); } return localISO(d); }
 function nextMonthStart(mk){ const p=mk.split("-").map(Number); return localISO(new Date(p[0],p[1],1)); }
 function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){return null;} }
 
@@ -651,8 +666,10 @@ function startApp(){
   nav.classList.remove("hide");
   const r=AUTH.user.role;
   document.getElementById("navDashboard").classList.toggle("hide", !["manager","admin"].includes(r));
+  document.getElementById("navApprovals").classList.toggle("hide", !["manager","admin"].includes(r));
   document.getElementById("navSummary").classList.toggle("hide", !["officer","team_lead","manager","admin"].includes(r));
   document.getElementById("navAdmin").classList.toggle("hide", r!=="admin");
+  if(["manager","admin"].includes(r)) refreshApprovalBadge();
   renderWho();
   sbGet("users?id=eq."+AUTH.user.id+"&select=avatar,job_position,contact,email").then(function(a){
     if(a&&a[0]){ AUTH.user.avatar=a[0].avatar; AUTH.user.email=a[0].email; AUTH.user.job_position=a[0].job_position; AUTH.user.contact=a[0].contact;
@@ -669,6 +686,7 @@ function show(tab){
   else if(tab==="dashboard") renderDashboard();
   else if(tab==="summary") renderSummary();
   else if(tab==="admin") renderAdmin();
+  else if(tab==="approvals") renderApprovals();
   else if(tab==="profile") renderProfile();
 }
 
@@ -774,7 +792,7 @@ function renderLog(){
   const hint=document.getElementById("ptsHint");
   wireCombo(c, "f_service", S.services.map(s=>({value:s.name,label:s.name})));
   wireCombo(c, "f_category", S.categories.map(x=>({value:x.name,label:x.name})));
-  wireCombo(c, "f_support", S.supports.map(s=>({value:String(s.id),label:s.name+" ("+s.points+" pts)",points:s.points})), function(it){ hint.textContent = it ? ("= "+it.points+" points") : ""; });
+  wireCombo(c, "f_support", S.supports.filter(s=>taskVisibleFor(s, AUTH.user.team_id)).map(s=>({value:String(s.id),label:s.name+" ("+s.points+" pts)",points:s.points})), function(it){ hint.textContent = it ? ("= "+it.points+" points") : ""; });
   wireStatusResolved(c, "f_status", "f_resolved");
   // multi-value chips: type a value + Enter (or comma) to add more
   wireChipInput("f_merchant","merchantChips");
@@ -860,9 +878,18 @@ async function saveEntry(){
     let rows;
     if(remarks.length>1) rows=remarks.map(rk=>Object.assign({merchant_name:merchants[0], remark:rk}, base));
     else rows=merchants.map(m=>Object.assign({merchant_name:m, remark:(remarks[0]||null)}, base));
+    const n=rows.length, pts=(sup?sup.points:0)*n;
+    // Officers / Team Leads: a start date earlier than 1 working day back needs Manager/Admin approval
+    const needsApproval = (AUTH.user.role==="officer"||AUTH.user.role==="team_lead") && startDate < prevWorkingDayISO();
+    if(needsApproval){
+      await sbInsert("pending_entries", rows);
+      if(tg){ try{ tg.HapticFeedback.notificationOccurred("success"); }catch(e){} }
+      renderLog();
+      document.getElementById("logMsg").innerHTML="<div class='notice ok'>⏳ Sent for approval — "+n+" back-dated "+(n===1?"entry":"entries")+" awaiting a Manager or Admin. It counts once approved.</div>";
+      return;
+    }
     await sbInsert("entries", rows);
     if(tg){ try{ tg.HapticFeedback.notificationOccurred("success"); }catch(e){} }
-    const n=rows.length, pts=(sup?sup.points:0)*n;
     renderLog();
     document.getElementById("logMsg").innerHTML="<div class='notice ok'>✅ Saved "+n+" "+(n===1?"entry":"entries")+"! ("+pts+" points)</div>";
   }catch(e){
@@ -1261,8 +1288,8 @@ async function renderOwnSummary(mk, from, to){
   const cal = (await sbGet(`month_calendar?select=working_days&month=eq.${mk}`))[0];
   const lv = (await sbGet("leaves?staff_user_id=eq."+AUTH.user.id+"&month=eq."+mk+"&select=days"))[0];
   const leaveDays = lv?(Number(lv.days)||0):0;
-  const effDays = cal?Math.max(0,cal.working_days-leaveDays):null;
-  const target = effDays!=null?daily*effDays:null;
+  const effDays = cal?Math.max(0,cal.working_days-AL_DEFAULT-leaveDays):null;
+  const target = effDays!=null?Math.round(daily*effDays):null;
   const parts=mk.split("-"); const mLabel=new Date(+parts[0],+parts[1]-1,1).toLocaleString('en',{month:'short',year:'numeric'});
   const max = target? Math.max(target,myPts)*1.1 : Math.max(myPts,1);
   const pct = target? Math.min(100,Math.round(myPts/max*100)) : (myPts>0?100:0);
@@ -1282,7 +1309,7 @@ async function renderOwnSummary(mk, from, to){
       <button class="btn sec" id="ownLeaveSave" style="width:auto">Save leave</button>
       <span class="muted" id="ownLeaveMsg"></span>
     </div>
-    <p class="muted" style="margin-top:10px">${target!=null?("Target "+target+" pts — "+daily+" pts × working days − your leave ("+leaveDays+"d)"):"Month not set in Admin"}</p>
+    <p class="muted" style="margin-top:10px">${target!=null?("Target "+target+" pts — "+daily+" pts × (working days − 1.5 AL − your leave "+leaveDays+"d)"):"Month not set in Admin"}</p>
   </div>`);
   app.appendChild(head);
   document.getElementById("mSel").onchange=(e)=>{S._month=e.target.value;renderSummary();};
@@ -1293,7 +1320,7 @@ async function renderOwnSummary(mk, from, to){
       <div class="barval">${myPts}</div>
       ${flagHtml}
     </div>
-    <p class="muted" style="margin:10px 0 12px">Your points for ${esc(mLabel)} vs your target (${daily} pts × working days − your leave).</p>
+    <p class="muted" style="margin:10px 0 12px">Your points for ${esc(mLabel)} vs your target (${daily} pts × (working days − 1.5 AL − your leave)).</p>
     <button class="btn" id="detailBtn" style="width:auto">📋 Detail</button>
     <div id="detailBox" class="hide" style="margin-top:12px"></div>
   </div>`));
@@ -1367,7 +1394,7 @@ function staffRowTr(u, calRow, ptsByUser, leaveByUser){
   const pts=ptsByUser[u.id]||0;
   const lvd=leaveByUser[u.id]||0;
   const noKpi = (u.role==="manager"||u.role==="admin");
-  const eff = wd!=null? Math.max(0, wd-lvd) : null;
+  const eff = wd!=null? Math.max(0, wd-AL_DEFAULT-lvd) : null;
   const tgt = (!noKpi && eff!=null)? Math.round(teamDaily(u.team_id)*eff) : null;
   const tag = u.role==="team_lead"?' <span class="muted">(Lead)</span>':(u.role==="manager"?' <span class="muted">(Manager)</span>':(u.role==="admin"?' <span class="muted">(Admin)</span>':''));
   const tgtCell = noKpi? `<span class="muted">No KPI required</span>` : (tgt==null?"\u2014":tgt);
@@ -1458,7 +1485,7 @@ async function renderSummary(silent){
     function teamRow(t){
       const staff=staffByTeam[t.id]||0, tleave=leaveByTeam[t.id]||0, actual=actualByTeam[t.id]||0;
       let target=null;
-      if(calRow){ const staffDays=calRow.working_days*staff - tleave; target=Math.max(0,Math.round(teamDaily(t.id)*Math.max(0,staffDays))); }
+      if(calRow){ const staffDays=(calRow.working_days-AL_DEFAULT)*staff - tleave; target=Math.max(0,Math.round(teamDaily(t.id)*Math.max(0,staffDays))); }
       if(target!=null){ tgtSum+=target; actSum+=actual; }
       rowsHtml += `<tr><td><span class="dot" style="background:${teamColor(t.id)}"></span>${esc(t.name)}</td>`
         + `<td class="num">${staff}</td><td class="num">${tleave}</td>`
@@ -1512,6 +1539,69 @@ async function renderSummary(silent){
 }
 
 /* ============================================================
+   APPROVALS  (manager / admin) — back-dated entry queue
+   ============================================================ */
+function approvalScopeTeamIds(){
+  const r=AUTH.user.role;
+  if(r==="admin") return null; // all
+  const mt=S.teams.find(t=>t.id===AUTH.user.team_id); const mu=mt?mt.unit_id:null;
+  return mu? S.teams.filter(t=>t.unit_id===mu).map(t=>t.id) : [];
+}
+async function refreshApprovalBadge(){
+  const badge=document.getElementById("apprBadge"); if(!badge) return;
+  try{
+    const ids=approvalScopeTeamIds();
+    let q="pending_entries?select=id";
+    if(ids!==null){ if(!ids.length){ badge.innerHTML=""; return; } q+="&team_id=in.("+ids.join(",")+")"; }
+    const rows=await sbGet(q);
+    badge.innerHTML = rows.length ? `<span style="display:inline-block;margin-left:6px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px">${rows.length}</span>` : "";
+  }catch(e){ badge.innerHTML=""; }
+}
+async function renderApprovals(){
+  app.innerHTML="<div class='center'><span class='spin'></span></div>";
+  try{
+    const ids=approvalScopeTeamIds();
+    let q="pending_entries?select=*,support_types(name)&order=requested_at.asc&limit=1000";
+    if(ids!==null){ if(!ids.length){ app.innerHTML="<div class='card'><h2 class='sec'>✅ Approvals</h2><p class='muted'>Your unit isn't set yet, so there's nothing to approve.</p></div>"; return; } q+="&team_id=in.("+ids.join(",")+")"; }
+    const rows=await sbGet(q);
+    app.innerHTML="";
+    app.appendChild(el(`<div class="card"><h2 class="sec">✅ Approvals</h2>
+      <p class="muted">Back-dated entries submitted by Officers and Team Leads. Approve to add them to the records, or reject to discard.</p></div>`));
+    if(!rows.length){ app.appendChild(el(`<div class="card"><p class="center muted">Nothing waiting for approval. 🎉</p></div>`)); refreshApprovalBadge(); return; }
+    const list=el(`<div class="card"><div id="apprList"></div></div>`); app.appendChild(list);
+    const host=list.querySelector("#apprList");
+    rows.forEach(r=>{
+      const sup=r.support_types?r.support_types.name:"";
+      const row=el(`<div class="litem" style="align-items:flex-start;flex-wrap:wrap">
+        <div class="lname" style="flex:1;min-width:220px;white-space:normal">
+          <b>${esc(r.merchant_name||"—")}</b> <span class="muted">· ${esc(fmtDate(r.start_date))}</span>
+          <div class="muted" style="font-weight:400;margin-top:4px">${esc(r.staff_name||"—")} · ${esc(teamName(r.team_id))}</div>
+          <div class="muted" style="font-weight:400">${esc(sup||"—")} (${r.points||0} pts) · ${esc(r.service||"—")} · ${esc(r.category||"—")}${r.remark?(" · "+esc(r.remark)):""}</div>
+        </div>
+        <div class="uact">
+          <button class="btn sm" data-appr="${r.id}">Approve</button>
+          <button class="btn danger sm" data-rej="${r.id}">Reject</button>
+        </div></div>`);
+      row.querySelector("[data-appr]").onclick=async()=>{
+        const b=row.querySelector("[data-appr]"); b.disabled=true; b.textContent="…";
+        try{
+          await sbInsert("entries",{ start_date:r.start_date, merchant_name:r.merchant_name, contact:r.contact, service:r.service, category:r.category, support_type_id:r.support_type_id, points:r.points, status:r.status, resolved_date:r.resolved_date, remark:r.remark, team_id:r.team_id, staff_user_id:r.staff_user_id, staff_name:r.staff_name });
+          const x=await fetch(REST+"pending_entries?id=eq."+r.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text());
+          renderApprovals();
+        }catch(e){ b.disabled=false; b.textContent="Approve"; alert("Error: "+e.message); }
+      };
+      row.querySelector("[data-rej]").onclick=async()=>{
+        if(!(await askConfirm('Reject this back-dated entry from "'+(r.staff_name||"—")+'"? It will be discarded.',{title:'Reject entry',ok:'Reject',danger:true}))) return;
+        try{ const x=await fetch(REST+"pending_entries?id=eq."+r.id,{method:"DELETE",headers:H}); if(!x.ok) throw new Error(await x.text()); renderApprovals(); }
+        catch(e){ alert("Error: "+e.message); }
+      };
+      host.appendChild(row);
+    });
+    refreshApprovalBadge();
+  }catch(e){ app.innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; }
+}
+
+/* ============================================================
    DASHBOARD  (manager / head / admin) — read-only overview
    ============================================================ */
 async function renderDashboard(){
@@ -1535,7 +1625,7 @@ async function renderDashboard(){
     const stc={Pending:0,"In Progress":0,Done:0};
     entries.forEach(e=>{ if(stc[e.status]!=null) stc[e.status]++; });
     let tgtTotal=0; const hasTarget=!!cal;
-    S.teams.forEach(t=>{ if(cal){ const sd=cal.working_days*(staffBy[t.id]||0)-(leaveBy[t.id]||0); tgtTotal+=Math.max(0,Math.round(teamDaily(t.id)*Math.max(0,sd))); } });
+    S.teams.forEach(t=>{ if(cal){ const sd=(cal.working_days-AL_DEFAULT)*(staffBy[t.id]||0)-(leaveBy[t.id]||0); tgtTotal+=Math.max(0,Math.round(teamDaily(t.id)*Math.max(0,sd))); } });
     const pct = hasTarget && tgtTotal>0 ? Math.round(totalPoints/tgtTotal*100) : null;
     const byStaff={};
     entries.forEach(e=>{ const k=(e.staff_user_id!=null?("u"+e.staff_user_id):("n"+(e.staff_name||""))); if(!byStaff[k]) byStaff[k]={name:e.staff_name||"—",pts:0,tasks:0}; byStaff[k].pts+=(e.points||0); byStaff[k].tasks++; });
@@ -1814,6 +1904,7 @@ function editRoleNameModal(k){
   setTimeout(()=>{ const f=m.querySelector('#rl_name'); if(f){ f.focus(); f.select(); } },50);
 }
 function editSupportModal(s){
+  const unitOptions='<option value="">All units (global)</option>'+S.units.map(u=>`<option value="${u.id}" ${u.id===s.unit_id?"selected":""}>${esc(u.name)}</option>`).join("");
   const m=el(`<div class="modal modal-center"><div class="box" style="max-width:400px">
     <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="sec">✏️ Edit task</h2><button class="iconbtn" data-x title="Close">✕</button></div>
     <div id="esMsg"></div>
@@ -1821,6 +1912,10 @@ function editSupportModal(s){
     <input id="es_name" value="${esc(s.name)}">
     <label>Points</label>
     <input type="number" id="es_pts" min="0" value="${s.points}">
+    <label>Unit</label>
+    <select id="es_unit">${unitOptions}</select>
+    <label>Team</label>
+    <select id="es_team"><option value="">Whole unit / all teams</option></select>
     <div class="row" style="margin-top:14px">
       <button class="btn sec" data-cancel>Cancel</button>
       <button class="btn" id="es_save">Save</button>
@@ -1830,29 +1925,38 @@ function editSupportModal(s){
   const close=()=>m.remove();
   m.querySelector('[data-x]').onclick=close; m.querySelector('[data-cancel]').onclick=close;
   m.onclick=(e)=>{ if(e.target===m) close(); };
+  const esUnit=m.querySelector('#es_unit'), esTeam=m.querySelector('#es_team');
+  const fillTeams=(sel)=>{ const uid=parseInt(esUnit.value,10); const teams=uid?S.teams.filter(t=>t.unit_id===uid):[];
+    esTeam.innerHTML='<option value="">Whole unit / all teams</option>'+teams.map(t=>`<option value="${t.id}" ${t.id===sel?"selected":""}>${esc(t.name)}</option>`).join(""); esTeam.disabled=!uid; };
+  esUnit.onchange=()=>fillTeams(null); fillTeams(s.team_id);
   m.querySelector('#es_save').onclick=async()=>{
     const v=m.querySelector('#es_name').value.trim();
     if(!v){ m.querySelector('#esMsg').innerHTML="<div class='notice err'>Enter a name.</div>"; return; }
     const pts=parseInt(m.querySelector('#es_pts').value,10); if(isNaN(pts)||pts<0){ m.querySelector('#esMsg').innerHTML="<div class='notice err'>Enter valid points.</div>"; return; }
+    const unit_id=parseInt(esUnit.value,10)||null; const team_id=parseInt(esTeam.value,10)||null;
     const b=m.querySelector('#es_save'); b.disabled=true; b.textContent="Saving…";
-    try{ await sbPatch("support_types","id=eq."+s.id,{name:v,points:pts}); await reloadSupports(); close(); renderAdmin(true); }
+    try{ await sbPatch("support_types","id=eq."+s.id,{name:v,points:pts,unit_id:unit_id,team_id:team_id}); await reloadSupports(); close(); renderAdmin(true); }
     catch(e){ m.querySelector('#esMsg').innerHTML="<div class='notice err'>"+esc(e.message)+"</div>"; b.disabled=false; b.textContent="Save"; }
   };
   setTimeout(()=>{ const f=m.querySelector('#es_name'); if(f){ f.focus(); f.select(); } },50);
 }
 async function adSupport(host){
+    const unitOptions='<option value="">All units (global)</option>'+S.units.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("");
     const sc=el(`<div class="card"><h2 class="sec">⭐ Tasks</h2>
+      <p class="muted" style="margin:2px 0 10px">Leave Unit as "All" for a task everyone can log, or scope it to a unit or a single team.</p>
       <div id="sList"></div>
-      <div class="row" style="align-items:flex-end;margin-top:12px">
-        <div style="flex:2"><label>New task name</label><input id="stName" placeholder="e.g. Callback"></div>
+      <div class="grid2" style="margin-top:14px">
+        <div><label>New task name</label><input id="stName" placeholder="e.g. Callback"></div>
         <div><label>Points</label><input type="number" id="stPts" value="1"></div>
-        <div style="flex:0 0 auto"><button class="btn sec sm" id="stAdd">Add</button></div>
+        <div><label>Unit</label><select id="stUnit">${unitOptions}</select></div>
+        <div><label>Team</label><select id="stTeam"><option value="">Whole unit / all teams</option></select></div>
       </div>
+      <button class="btn sec sm" id="stAdd" style="margin-top:12px">Add task</button>
     </div>`);
     host.appendChild(sc);
     const sList=sc.querySelector("#sList");
     S.supports.forEach(s=>{
-      const row=el(`<div class="litem"><div class="lname">${esc(s.name)} <span class="muted" style="font-weight:500">· ${s.points} pts</span></div>
+      const row=el(`<div class="litem"><div class="lname">${esc(s.name)} <span class="muted" style="font-weight:500">· ${s.points} pts · ${esc(taskScopeLabel(s))}</span></div>
         <div class="uact">
           <button class="btn sec sm" data-edsup="${s.id}">Edit</button>
           <button class="btn danger sm" data-delp="${s.id}">Remove</button>
@@ -1865,12 +1969,51 @@ async function adSupport(host){
       };
       sList.appendChild(row);
     });
-    document.getElementById("stAdd").onclick=async()=>{
+    const stUnit=sc.querySelector("#stUnit"), stTeam=sc.querySelector("#stTeam");
+    const fillScopeTeams=()=>{ const uid=parseInt(stUnit.value,10); const teams=uid?S.teams.filter(t=>t.unit_id===uid):[];
+      stTeam.innerHTML='<option value="">Whole unit / all teams</option>'+teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join(""); stTeam.disabled=!uid; };
+    stUnit.onchange=fillScopeTeams; fillScopeTeams();
+    sc.querySelector("#stAdd").onclick=async()=>{
       const name=document.getElementById("stName").value.trim();
       const pts=parseInt(document.getElementById("stPts").value,10)||0;
       if(!name) return;
-      try{ await sbInsert("support_types",{name:name,points:pts,active:true}); await reloadSupports(); renderAdmin(true); }
+      const unit_id=parseInt(stUnit.value,10)||null;
+      const team_id=parseInt(stTeam.value,10)||null;
+      try{ await sbInsert("support_types",{name:name,points:pts,active:true,unit_id:unit_id,team_id:team_id}); await reloadSupports(); renderAdmin(true); }
       catch(e){ alert("Error: "+e.message); }
+    };
+
+    // --- Bulk upload tasks from a CSV file ---
+    const bc=el(`<div class="card"><h2 class="sec">⚡ Bulk upload tasks</h2>
+      <p class="muted" style="margin:2px 0 10px">Upload a CSV / text file — one task per line: <b>name, points, unit, team</b>. Unit &amp; team are names and optional (blank = all). Example: <i>Callback, 2, E-Merchant, Monitoring Team</i></p>
+      <input type="file" id="taskFile" accept=".csv,.txt" style="font-size:14px">
+      <div id="taskUpMsg" style="margin-top:10px"></div>
+    </div>`);
+    host.appendChild(bc);
+    const findUnitByName=(v)=>{ v=(v||"").trim().toLowerCase(); const u=S.units.find(x=>x.name.toLowerCase()===v); return u?u.id:null; };
+    const findTeamByName=(v)=>{ v=(v||"").trim().toLowerCase(); const t=S.teams.find(x=>x.name.toLowerCase()===v); return t?t.id:null; };
+    bc.querySelector("#taskFile").onchange=(ev)=>{
+      const f=ev.target.files&&ev.target.files[0]; if(!f) return;
+      const msg=bc.querySelector("#taskUpMsg");
+      const rd=new FileReader();
+      rd.onload=async()=>{
+        const lines=String(rd.result||"").split(/\r?\n/).map(l=>l.trim()).filter(l=>l && l.toLowerCase().indexOf("name,")!==0);
+        if(!lines.length){ msg.innerHTML="<div class='notice err'>No rows found in the file.</div>"; return; }
+        let ok=0; const errs=[];
+        for(const line of lines){
+          const c=line.split(",").map(x=>x.trim());
+          const name=c[0]; const pts=parseInt(c[1],10)||0;
+          if(!name){ errs.push("missing name: "+line); continue; }
+          const uid=c[2]?findUnitByName(c[2]):null;
+          const tid=c[3]?findTeamByName(c[3]):null;
+          try{ await sbInsert("support_types",{name:name,points:pts,active:true,unit_id:uid,team_id:tid}); ok++; }
+          catch(e){ errs.push(name+": "+e.message); }
+        }
+        await reloadSupports();
+        msg.innerHTML="<div class='notice ok'>Added "+ok+" task"+(ok===1?"":"s")+".</div>"+(errs.length?"<div class='notice err' style='margin-top:6px'>"+errs.length+" skipped: "+esc(errs.slice(0,3).join("; "))+"</div>":"");
+        setTimeout(()=>renderAdmin(true),900);
+      };
+      rd.readAsText(f);
     };
 }
 async function adServices(host){
@@ -1925,9 +2068,10 @@ async function adTarget(host){
         <div><label>Public holidays (days)</label><input type="number" id="mcHol" min="0" value="0"></div>
       </div>
       <p class="muted" style="margin-top:12px">Working days (auto): <b id="mcWd" style="color:var(--accent);font-size:15px">—</b><span id="mcBreak"></span></p>
+      <p class="muted" style="margin-top:4px">KPI working days / staff: <b id="mcKwd" style="color:var(--accent);font-size:15px">—</b> <span>(after − 1.5 AL)</span></p>
       <div id="mcMsg"></div>
       <button class="btn sec sm" id="mcSave" style="margin-top:8px">Save month</button>
-      <p class="muted" style="margin-top:6px">Working days = total days − weekends (Sat/Sun) − holidays.</p>
+      <p class="muted" style="margin-top:6px">Working days = total days − weekends (Sat/Sun) − holidays. Each staff's KPI target then deducts 1.5 AL days per month.</p>
     </div>`);
     host.appendChild(mcard);
     const mcRecompute=()=>{
@@ -1937,6 +2081,7 @@ async function adTarget(host){
       const dim=daysInMonth(mk), wk=weekendsInMonth(mk), wd=Math.max(0,dim-wk-hol);
       document.getElementById("mcWd").textContent=wd;
       document.getElementById("mcBreak").textContent=` (${dim} days − ${wk} weekend − ${hol} holiday)`;
+      const kwd=document.getElementById("mcKwd"); if(kwd) kwd.textContent=Math.max(0,wd-AL_DEFAULT);
     };
     const mcLoad=async()=>{
       const mk=document.getElementById("mcMonth").value;
