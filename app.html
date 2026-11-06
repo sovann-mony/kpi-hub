@@ -317,6 +317,7 @@
   <header>
     <h1 class="brandrow" id="brandH"><span>KPI&nbsp;Hub</span></h1>
     <div style="display:flex;align-items:center;gap:10px">
+      <button id="bellBtn" class="theme-toggle" title="Notifications" style="position:relative;display:none">🔔<span id="bellBadge"></span></button>
       <button id="themeBtn" class="theme-toggle" title="Day / night">🌙</button>
       <div class="who" id="who"></div>
     </div>
@@ -601,7 +602,7 @@ async function doLogin(){
     renderLogin("Login error: "+e.message);
   }
 }
-function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); renderLogin(); }
+function logout(){ AUTH.user=null; AUTH.pass=null; ls("kpihub_session",null); const _b=document.getElementById("bellBtn"); if(_b){ _b.style.display="none"; _b.querySelector("#bellBadge").innerHTML=""; } renderLogin(); }
 /* First login: user must set their own password (min 6 chars) before entering. */
 function renderFirstPassword(){
   nav.classList.add("hide");
@@ -670,6 +671,9 @@ function startApp(){
   document.getElementById("navSummary").classList.toggle("hide", !["officer","team_lead","manager","admin"].includes(r));
   document.getElementById("navAdmin").classList.toggle("hide", r!=="admin");
   if(["manager","admin"].includes(r)) refreshApprovalBadge();
+  const _bell=document.getElementById("bellBtn");
+  if(_bell){ _bell.style.display=""; _bell.onclick=(e)=>{ e.stopPropagation(); openBell(); }; }
+  refreshBell();
   renderWho();
   sbGet("users?id=eq."+AUTH.user.id+"&select=avatar,job_position,contact,email").then(function(a){
     if(a&&a[0]){ AUTH.user.avatar=a[0].avatar; AUTH.user.email=a[0].email; AUTH.user.job_position=a[0].job_position; AUTH.user.contact=a[0].contact;
